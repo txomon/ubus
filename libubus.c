@@ -314,6 +314,28 @@ skip:
 	}
 }
 
+void ubus_invoke_path_async(struct ubus_context *ctx, const char *path, const char *method,
+                       struct blob_attr *msg, struct ubus_request *req)
+{
+	blob_buf_init(&b, 0);
+	blob_put_string(&b, UBUS_ATTR_OBJPATH, path);
+	blob_put_string(&b, UBUS_ATTR_METHOD, method);
+	blob_put(&b, UBUS_ATTR_DATA, blob_data(msg), blob_len(msg));
+
+	ubus_start_request(ctx, req, b.head, UBUS_MSG_INVOKE, 0);
+}
+
+int ubus_invoke_path(struct ubus_context *ctx, const char *path, const char *method,
+                struct blob_attr *msg, ubus_data_handler_t cb, void *priv)
+{
+	struct ubus_request req;
+
+	ubus_invoke_path_async(ctx, path, method, msg, &req);
+	req.data_cb = cb;
+	req.priv = priv;
+	return ubus_complete_request(ctx, &req);
+}
+
 void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method,
                        struct blob_attr *msg, struct ubus_request *req)
 {
@@ -322,7 +344,7 @@ void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *metho
 	blob_put_string(&b, UBUS_ATTR_METHOD, method);
 	blob_put(&b, UBUS_ATTR_DATA, blob_data(msg), blob_len(msg));
 
-	ubus_start_request(ctx, req, b.head, UBUS_MSG_INVOKE, obj);
+	ubus_start_request(ctx, req, b.head, UBUS_MSG_INVOKE, 0);
 }
 
 int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,

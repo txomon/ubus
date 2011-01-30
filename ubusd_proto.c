@@ -161,10 +161,16 @@ static int ubusd_handle_lookup(struct ubus_client *cl, struct ubus_msg_buf *ub)
 	return 0;
 }
 
+static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub)
+{
+	return UBUS_STATUS_NOT_FOUND;
+}
+
 static const ubus_cmd_cb handlers[__UBUS_MSG_LAST] = {
 	[UBUS_MSG_PING] = ubusd_send_pong,
 	[UBUS_MSG_PUBLISH] = ubusd_handle_publish,
 	[UBUS_MSG_LOOKUP] = ubusd_handle_lookup,
+	[UBUS_MSG_INVOKE] = ubusd_handle_invoke,
 };
 
 void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)

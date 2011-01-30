@@ -32,7 +32,8 @@ static int usage(char *prog)
 	fprintf(stderr,
 		"Usage: %s <command> [arguments...]\n"
 		"Commands:\n"
-		" - list [<path>]	List objects\n"
+		" - list [<path>]			List objects\n"
+		" - call <path> <method> [<message>]	Call an object method\n"
 		"\n", prog);
 	return 1;
 }
@@ -61,12 +62,20 @@ int main(int argc, char **argv)
 
 		ubus_start_request(ctx, &req, b.head, UBUS_MSG_LOOKUP, 0);
 		req.data_cb = receive_lookup;
-		ret = ubus_complete_request(ctx, &req);
-		if (ret)
-			fprintf(stderr, "Failed: %d\n", ret);
+	} else if (!strcmp(cmd, "call")) {
+		if (argc < 4 || argc > 5)
+			return usage(argv[0]);
+
+		blob_put_string(&b, UBUS_ATTR_OBJPATH, argv[2]);
+		blob_put_string(&b, UBUS_ATTR_METHOD, argv[3]);
+		ubus_start_request(ctx, &req, b.head, UBUS_MSG_INVOKE, 0);
 	} else {
 		return usage(argv[0]);
 	}
+
+	ret = ubus_complete_request(ctx, &req);
+	if (ret)
+		fprintf(stderr, "Failed: %s\n", ubus_strerror(ret));
 
 	ubus_free(ctx);
 	return 0;
