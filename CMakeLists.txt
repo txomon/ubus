@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 2.8)
 
 PROJECT(ubus C)
 ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -g3)
-ADD_LIBRARY(ubus STATIC libubus.c)
+
+ADD_LIBRARY(ubus SHARED libubus.c)
+TARGET_LINK_LIBRARIES(ubus ubox)
 
 ADD_EXECUTABLE(ubusd ubusd.c ubusd_id.c ubusd_obj.c ubusd_proto.c)
 TARGET_LINK_LIBRARIES(ubusd ubox)

@@ -3,6 +3,8 @@ CMakeCache.txt
 CMakeFiles
 *.cmake
 *.a
+*.so
+*.dylib
 ubus.sock
 listener
 ubusd
