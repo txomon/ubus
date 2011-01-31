@@ -167,23 +167,18 @@ static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub)
 {
 	struct ubus_object *obj = NULL;
 	struct blob_attr **attr;
+	struct ubus_id *id;
 	const char *method;
 
 	attr = ubus_parse_msg(ub->data);
-	if (!attr[UBUS_ATTR_METHOD])
+	if (!attr[UBUS_ATTR_METHOD] || !attr[UBUS_ATTR_OBJID])
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	if (attr[UBUS_ATTR_OBJID]) {
-		struct ubus_id *id;
-		id = ubus_find_id(&objects, blob_get_int32(attr[UBUS_ATTR_OBJID]));
-		if (id)
-			obj = container_of(id, struct ubus_object, id);
-	} else if (attr[UBUS_ATTR_OBJPATH]) {
-		const char *objpath = blob_data(attr[UBUS_ATTR_OBJPATH]);
-		obj = avl_find_element(&path, objpath, obj, path);
-	}
-	if (!obj)
+	id = ubus_find_id(&objects, blob_get_int32(attr[UBUS_ATTR_OBJID]));
+	if (!id)
 		return UBUS_STATUS_NOT_FOUND;
+
+	obj = container_of(id, struct ubus_object, id);
 
 	method = blob_data(attr[UBUS_ATTR_METHOD]);
 	blob_buf_init(&b, 0);
@@ -209,9 +204,19 @@ static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub)
 static int ubusd_handle_status(struct ubus_client *cl, struct ubus_msg_buf *ub)
 {
 	struct blob_attr **attr;
+	struct ubus_object *obj;
+	struct ubus_id *id;
 
 	attr = ubus_parse_msg(ub->data);
 	if (!attr[UBUS_ATTR_OBJID] || !attr[UBUS_ATTR_STATUS])
+		goto error;
+
+	id = ubus_find_id(&objects, blob_get_int32(attr[UBUS_ATTR_OBJID]));
+	if (!id)
+		goto error;
+
+	obj = container_of(id, struct ubus_object, id);
+	if (cl != obj->client)
 		goto error;
 
 	cl = ubusd_get_client_by_id(ub->hdr.peer);
