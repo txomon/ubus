@@ -100,6 +100,7 @@ static void ubusd_send_obj(struct ubus_client *cl, struct ubus_msg_buf *ub, stru
 	if (obj->path.key)
 		blob_put_string(&b, UBUS_ATTR_OBJPATH, obj->path.key);
 	blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id.id);
+	blob_put_int32(&b, UBUS_ATTR_OBJTYPE, obj->type->id.id);
 
 	s = blob_nest_start(&b, UBUS_ATTR_SIGNATURE);
 	list_for_each_entry(m, &obj->type->methods, list)
