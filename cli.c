@@ -96,6 +96,7 @@ int main(int argc, char **argv)
 
 		ubus_start_request(ctx, &req, b.head, UBUS_MSG_LOOKUP, 0);
 		req.raw_data_cb = receive_lookup;
+		ret = ubus_complete_request(ctx, &req);
 	} else if (!strcmp(cmd, "call")) {
 		if (argc < 4 || argc > 5)
 			return usage(argv[0]);
@@ -105,16 +106,11 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		blob_buf_init(&b, 0);
-		blob_put_int32(&b, UBUS_ATTR_OBJID, objid);
-		blob_put_string(&b, UBUS_ATTR_METHOD, argv[3]);
-		ubus_start_request(ctx, &req, b.head, UBUS_MSG_INVOKE, objid);
-		req.data_cb = receive_data;
+		ret = ubus_invoke(ctx, objid, argv[3], NULL, receive_data, NULL);
 	} else {
 		return usage(argv[0]);
 	}
 
-	ret = ubus_complete_request(ctx, &req);
 	if (ret)
 		fprintf(stderr, "Failed: %s\n", ubus_strerror(ret));
 
