@@ -43,6 +43,16 @@ struct ubus_pending_data {
 	struct blob_attr data[];
 };
 
+static int ubus_cmp_id(const void *k1, const void *k2, void *ptr)
+{
+	const uint32_t *id1 = k1, *id2 = k2;
+
+	if (*id1 < *id2)
+		return -1;
+	else
+		return *id1 > *id2;
+}
+
 struct blob_attr **ubus_parse_msg(struct blob_attr *msg)
 {
 	blob_parse(msg, attrbuf, ubus_policy, UBUS_ATTR_MAX);
@@ -97,6 +107,7 @@ int ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
 
 	INIT_LIST_HEAD(&req->list);
 	INIT_LIST_HEAD(&req->pending);
+	req->ctx = ctx;
 	req->peer = peer;
 	req->seq = ++ctx->request_seq;
 	return ubus_send_msg(ctx, req->seq, msg, cmd, peer);
@@ -394,6 +405,9 @@ static void ubus_publish_cb(struct ubus_request *req, int type, struct blob_attr
 
 	if (attrbuf[UBUS_ATTR_OBJTYPE])
 		obj->type->id = blob_get_int32(attrbuf[UBUS_ATTR_OBJTYPE]);
+
+	obj->avl.key = &obj->id;
+	avl_insert(&req->ctx->objects, &obj->avl);
 }
 
 static bool ubus_push_table_data(const struct ubus_signature **sig, int *rem, bool array)
@@ -464,8 +478,6 @@ int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
 
 	blob_buf_init(&b, 0);
 	blob_put_string(&b, UBUS_ATTR_OBJPATH, obj->name);
-	if (obj->parent)
-		blob_put_int32(&b, UBUS_ATTR_OBJID, obj->parent->id);
 
 	if (obj->type->id)
 		blob_put_int32(&b, UBUS_ATTR_OBJTYPE, obj->type->id);
@@ -534,8 +546,10 @@ struct ubus_context *ubus_connect(const char *path)
 	}
 
 	ctx->local_id = hdr.hdr.peer;
-	INIT_LIST_HEAD(&ctx->requests);
 	free(buf);
+
+	INIT_LIST_HEAD(&ctx->requests);
+	avl_init(&ctx->objects, ubus_cmp_id, false, NULL);
 
 	if (!ctx->local_id) {
 		DPRINTF("Failed to get local peer id\n");

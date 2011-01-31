@@ -1,3 +1,4 @@
+#include <libubox/avl.h>
 #include <libubox/list.h>
 #include <libubox/blobmsg.h>
 #include <libubox/uloop.h>
@@ -52,18 +53,19 @@ struct ubus_object_type {
 };
 
 struct ubus_object {
+	struct avl_node avl;
+
 	const char *name;
 	uint32_t id;
 
 	const char *path;
-	struct ubus_object *parent;
-
 	struct ubus_object_type *type;
 };
 
 struct ubus_context {
 	struct list_head requests;
-	struct list_head objects;
+	struct avl_tree objects;
+
 	struct uloop_fd sock;
 
 	uint32_t local_id;
@@ -96,6 +98,7 @@ struct ubus_request {
 	ubus_data_handler_t data_cb;
 	ubus_complete_handler_t complete_cb;
 
+	struct ubus_context *ctx;
 	void *priv;
 };
 
