@@ -138,10 +138,6 @@ struct blob_attr **ubus_parse_msg(struct blob_attr *msg);
 
 /* ----------- raw request handling ----------- */
 
-/* start a raw request */
-int ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
-		       struct blob_attr *msg, int cmd, uint32_t peer);
-
 /* wait for a request to complete and return its status */
 int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req);
 

@@ -102,8 +102,8 @@ static int ubus_send_msg(struct ubus_context *ctx, uint32_t seq,
 	return writev(ctx->sock.fd, iov, 2);
 }
 
-int ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
-		       struct blob_attr *msg, int cmd, uint32_t peer)
+static int ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
+			      struct blob_attr *msg, int cmd, uint32_t peer)
 {
 	memset(req, 0, sizeof(*req));
 
