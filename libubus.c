@@ -66,22 +66,18 @@ out:
 	return err;
 }
 
-int ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
-		       struct blob_attr *msg, int cmd, uint32_t peer)
+static int ubus_send_msg(struct ubus_context *ctx, uint32_t seq,
+			 struct blob_attr *msg, int cmd, uint32_t peer)
 {
 	struct ubus_msghdr hdr;
 	struct iovec iov[2] = {
 		STATIC_IOV(hdr)
 	};
 
-	memset(req, 0, sizeof(*req));
 	hdr.version = 0;
 	hdr.type = cmd;
-	hdr.seq = ++ctx->request_seq;
+	hdr.seq = seq;
 	hdr.peer = peer;
-
-	req->peer = hdr.peer;
-	req->seq = hdr.seq;
 
 	if (!msg) {
 		blob_buf_init(&b, 0);
@@ -90,10 +86,20 @@ int ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
 
 	iov[1].iov_base = (char *) msg;
 	iov[1].iov_len = blob_raw_len(msg);
-	INIT_LIST_HEAD(&req->list);
-	INIT_LIST_HEAD(&req->pending);
 
 	return writev(ctx->sock.fd, iov, 2);
+}
+
+int ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
+		       struct blob_attr *msg, int cmd, uint32_t peer)
+{
+	memset(req, 0, sizeof(*req));
+
+	INIT_LIST_HEAD(&req->list);
+	INIT_LIST_HEAD(&req->pending);
+	req->peer = peer;
+	req->seq = ++ctx->request_seq;
+	return ubus_send_msg(ctx, req->seq, msg, cmd, peer);
 }
 
 static bool recv_retry(int fd, struct iovec *iov, bool wait)
@@ -232,26 +238,60 @@ static void ubus_req_data(struct ubus_request *req, struct ubus_msghdr *hdr)
 	list_add(&data->list, &req->pending);
 }
 
-static void ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
+static struct ubus_request *ubus_find_request(struct ubus_context *ctx, uint32_t seq, uint32_t peer)
 {
 	struct ubus_request *req;
 
 	list_for_each_entry(req, &ctx->requests, list) {
-		if (hdr->seq != req->seq || hdr->peer != req->peer)
+		if (seq != req->seq || peer != req->peer)
 			continue;
 
-		switch(hdr->type) {
-		case UBUS_MSG_STATUS:
-			ubus_process_req_status(req, hdr);
-			return;
-		case UBUS_MSG_DATA:
-			if (req->data_cb)
-				ubus_req_data(req, hdr);
+		return req;
+	}
+	return NULL;
+}
+
+static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hdr)
+{
+	uint32_t objid = 0;
+	int ret = 0;
+
+	ubus_parse_msg(hdr->data);
+
+	if (attrbuf[UBUS_ATTR_OBJID])
+		objid = blob_get_int32(attrbuf[UBUS_ATTR_OBJID]);
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_STATUS, ret);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, objid);
+	ubus_send_msg(ctx, hdr->seq, b.head, UBUS_MSG_STATUS, hdr->peer);
+}
+
+static void ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
+{
+	struct ubus_request *req;
+
+	switch(hdr->type) {
+	case UBUS_MSG_STATUS:
+		req = ubus_find_request(ctx, hdr->seq, hdr->peer);
+		if (!req)
 			break;
-		default:
-			DPRINTF("unknown message type: %d\n", hdr->type);
-			break;
-		}
+
+		ubus_process_req_status(req, hdr);
+		break;
+
+	case UBUS_MSG_DATA:
+		req = ubus_find_request(ctx, hdr->seq, hdr->peer);
+		if (req && req->data_cb)
+			ubus_req_data(req, hdr);
+		break;
+
+	case UBUS_MSG_INVOKE:
+		ubus_process_invoke(ctx, hdr);
+		break;
+	default:
+		DPRINTF("unknown message type: %d\n", hdr->type);
+		break;
 	}
 }
 
@@ -305,35 +345,12 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req)
 				ubus_req_data(req, hdr);
 			continue;
 		default:
-			DPRINTF("unknown message type: %d\n", hdr->type);
-			continue;
+			goto skip;
 		}
 
 skip:
 		ubus_process_msg(ctx, hdr);
 	}
-}
-
-void ubus_invoke_path_async(struct ubus_context *ctx, const char *path, const char *method,
-                       struct blob_attr *msg, struct ubus_request *req)
-{
-	blob_buf_init(&b, 0);
-	blob_put_string(&b, UBUS_ATTR_OBJPATH, path);
-	blob_put_string(&b, UBUS_ATTR_METHOD, method);
-	blob_put(&b, UBUS_ATTR_DATA, blob_data(msg), blob_len(msg));
-
-	ubus_start_request(ctx, req, b.head, UBUS_MSG_INVOKE, 0);
-}
-
-int ubus_invoke_path(struct ubus_context *ctx, const char *path, const char *method,
-                struct blob_attr *msg, ubus_data_handler_t cb, void *priv)
-{
-	struct ubus_request req;
-
-	ubus_invoke_path_async(ctx, path, method, msg, &req);
-	req.data_cb = cb;
-	req.priv = priv;
-	return ubus_complete_request(ctx, &req);
 }
 
 void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method,
@@ -344,7 +361,7 @@ void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *metho
 	blob_put_string(&b, UBUS_ATTR_METHOD, method);
 	blob_put(&b, UBUS_ATTR_DATA, blob_data(msg), blob_len(msg));
 
-	ubus_start_request(ctx, req, b.head, UBUS_MSG_INVOKE, 0);
+	ubus_start_request(ctx, req, b.head, UBUS_MSG_INVOKE, obj);
 }
 
 int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,
@@ -511,6 +528,7 @@ struct ubus_context *ubus_connect(const char *path)
 	}
 
 	ctx->local_id = hdr.hdr.peer;
+	INIT_LIST_HEAD(&ctx->requests);
 	free(buf);
 
 	if (!ctx->local_id) {

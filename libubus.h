@@ -130,13 +130,9 @@ void ubus_abort_request(struct ubus_context *ctx, struct ubus_request *req);
 /* invoke a method on a specific object */
 int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,
                 struct blob_attr *msg, ubus_data_handler_t cb, void *priv);
-int ubus_invoke_path(struct ubus_context *ctx, const char *path, const char *method,
-                struct blob_attr *msg, ubus_data_handler_t cb, void *priv);
 
 /* asynchronous version of ubus_invoke() */
 void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method,
-                       struct blob_attr *msg, struct ubus_request *req);
-void ubus_invoke_path_async(struct ubus_context *ctx, const char *path, const char *method,
                        struct blob_attr *msg, struct ubus_request *req);
 
 /* make an object visible to remote connections */

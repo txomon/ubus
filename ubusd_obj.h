@@ -27,8 +27,9 @@ struct ubus_object {
 	struct list_head list;
 
 	struct ubus_object_type *type;
-
 	struct avl_node path;
+
+	struct ubus_client *client;
 };
 
 struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr **attr);

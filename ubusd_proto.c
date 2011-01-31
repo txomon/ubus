@@ -13,6 +13,8 @@ static const struct blob_attr_info ubus_policy[UBUS_ATTR_MAX] = {
 	[UBUS_ATTR_SIGNATURE] = { .type = BLOB_ATTR_NESTED },
 	[UBUS_ATTR_OBJTYPE] = { .type = BLOB_ATTR_INT32 },
 	[UBUS_ATTR_OBJPATH] = { .type = BLOB_ATTR_STRING },
+	[UBUS_ATTR_OBJID] = { .type = BLOB_ATTR_INT32 },
+	[UBUS_ATTR_STATUS] = { .type = BLOB_ATTR_INT32 },
 };
 
 struct blob_attr **ubus_parse_msg(struct blob_attr *msg)
@@ -163,7 +165,66 @@ static int ubusd_handle_lookup(struct ubus_client *cl, struct ubus_msg_buf *ub)
 
 static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub)
 {
-	return UBUS_STATUS_NOT_FOUND;
+	struct ubus_object *obj = NULL;
+	struct blob_attr **attr;
+	const char *method;
+
+	attr = ubus_parse_msg(ub->data);
+	if (!attr[UBUS_ATTR_METHOD])
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	if (attr[UBUS_ATTR_OBJID]) {
+		struct ubus_id *id;
+		id = ubus_find_id(&objects, blob_get_int32(attr[UBUS_ATTR_OBJID]));
+		if (id)
+			obj = container_of(id, struct ubus_object, id);
+	} else if (attr[UBUS_ATTR_OBJPATH]) {
+		const char *objpath = blob_data(attr[UBUS_ATTR_OBJPATH]);
+		obj = avl_find_element(&path, objpath, obj, path);
+	}
+	if (!obj)
+		return UBUS_STATUS_NOT_FOUND;
+
+	method = blob_data(attr[UBUS_ATTR_METHOD]);
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id.id);
+	blob_put_string(&b, UBUS_ATTR_METHOD, method);
+	if (attr[UBUS_ATTR_DATA])
+		blob_put(&b, UBUS_ATTR_DATA, blob_data(attr[UBUS_ATTR_DATA]),
+			 blob_len(attr[UBUS_ATTR_DATA]));
+
+	ubus_msg_free(ub);
+
+	ub = ubus_reply_from_blob(ub, true);
+	if (!ub)
+		return UBUS_STATUS_NO_DATA;
+
+	ub->hdr.type = UBUS_MSG_INVOKE;
+	ub->hdr.peer = cl->id.id;
+	ubus_msg_send(obj->client, ub);
+
+	return -1;
+}
+
+static int ubusd_handle_status(struct ubus_client *cl, struct ubus_msg_buf *ub)
+{
+	struct blob_attr **attr;
+
+	attr = ubus_parse_msg(ub->data);
+	if (!attr[UBUS_ATTR_OBJID] || !attr[UBUS_ATTR_STATUS])
+		goto error;
+
+	cl = ubusd_get_client_by_id(ub->hdr.peer);
+	if (!cl)
+		goto error;
+
+	ub->hdr.peer = blob_get_int32(attr[UBUS_ATTR_OBJID]);
+	ubus_msg_send(cl, ub);
+	return -1;
+
+error:
+	ubus_msg_free(ub);
+	return -1;
 }
 
 static const ubus_cmd_cb handlers[__UBUS_MSG_LAST] = {
@@ -171,6 +232,7 @@ static const ubus_cmd_cb handlers[__UBUS_MSG_LAST] = {
 	[UBUS_MSG_PUBLISH] = ubusd_handle_publish,
 	[UBUS_MSG_LOOKUP] = ubusd_handle_lookup,
 	[UBUS_MSG_INVOKE] = ubusd_handle_invoke,
+	[UBUS_MSG_STATUS] = ubusd_handle_status,
 };
 
 void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)
@@ -188,6 +250,9 @@ void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)
 		ret = cb(cl, ub);
 	else
 		ret = UBUS_STATUS_INVALID_COMMAND;
+
+	if (ret == -1)
+		return;
 
 	ubus_msg_free(ub);
 

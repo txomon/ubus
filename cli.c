@@ -2,6 +2,7 @@
 
 static struct blob_buf b;
 static struct ubus_context *ctx;
+static uint32_t objid;
 
 static void receive_lookup(struct ubus_request *req, int type, struct blob_attr *msg)
 {
@@ -25,6 +26,31 @@ static void receive_lookup(struct ubus_request *req, int type, struct blob_attr 
 		fprintf(stderr, "\t%s\n", s);
 		free(s);
 	}
+}
+
+static void store_objid(struct ubus_request *req, int type, struct blob_attr *msg)
+{
+	struct blob_attr **attr;
+
+	attr = ubus_parse_msg(msg);
+	if (!attr[UBUS_ATTR_OBJID])
+		return;
+
+	objid = blob_get_int32(attr[UBUS_ATTR_OBJID]);
+}
+
+static uint32_t get_object(const char *name)
+{
+	struct ubus_request req;
+
+	blob_buf_init(&b, 0);
+	blob_put_string(&b, UBUS_ATTR_OBJPATH, name);
+	ubus_start_request(ctx, &req, b.head, UBUS_MSG_LOOKUP, 0);
+	req.data_cb = store_objid;
+	if (ubus_complete_request(ctx, &req))
+		return 0;
+
+	return objid;
 }
 
 static int usage(char *prog)
@@ -54,9 +80,9 @@ int main(int argc, char **argv)
 	if (argc < 2)
 		return usage(argv[0]);
 
-	blob_buf_init(&b, 0);
-
 	if (!strcmp(cmd, "list")) {
+		blob_buf_init(&b, 0);
+
 		if (argc == 3)
 			blob_put_string(&b, UBUS_ATTR_OBJPATH, argv[2]);
 
@@ -66,9 +92,15 @@ int main(int argc, char **argv)
 		if (argc < 4 || argc > 5)
 			return usage(argv[0]);
 
-		blob_put_string(&b, UBUS_ATTR_OBJPATH, argv[2]);
+		if (get_object(argv[2]) == 0) {
+			fprintf(stderr, "Object not found\n");
+			return 1;
+		}
+
+		blob_buf_init(&b, 0);
+		blob_put_int32(&b, UBUS_ATTR_OBJID, objid);
 		blob_put_string(&b, UBUS_ATTR_METHOD, argv[3]);
-		ubus_start_request(ctx, &req, b.head, UBUS_MSG_INVOKE, 0);
+		ubus_start_request(ctx, &req, b.head, UBUS_MSG_INVOKE, objid);
 	} else {
 		return usage(argv[0]);
 	}

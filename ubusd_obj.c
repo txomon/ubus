@@ -109,6 +109,7 @@ struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr
 	}
 
 	obj->type = type;
+	obj->client = cl;
 	list_add(&obj->list, &cl->objects);
 
 	return obj;
