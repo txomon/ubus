@@ -88,6 +88,7 @@ struct ubus_request {
 	bool status_msg;
 	int status_code;
 	bool blocked;
+	bool cancelled;
 
 	uint32_t peer;
 	uint32_t seq;

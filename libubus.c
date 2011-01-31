@@ -178,7 +178,8 @@ static void ubus_process_req_data(struct ubus_request *req)
 		data = list_first_entry(&req->pending,
 			struct ubus_pending_data, list);
 		list_del(&data->list);
-		req->data_cb(req, data->type, data->data);
+		if (!req->cancelled)
+			req->data_cb(req, data->type, data->data);
 		free(data);
 	}
 }
@@ -300,6 +301,8 @@ void ubus_abort_request(struct ubus_context *ctx, struct ubus_request *req)
 	if (!list_empty(&req->list))
 		return;
 
+	req->cancelled = true;
+	ubus_process_req_data(req);
 	list_del(&req->list);
 }
 
@@ -330,6 +333,9 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req)
 	while (1) {
 		if (req->status_msg)
 			return req->status_code;
+
+		if (req->cancelled)
+			return UBUS_STATUS_NO_DATA;
 
 		if (!get_next_msg(ctx, true))
 			return UBUS_STATUS_NO_DATA;
