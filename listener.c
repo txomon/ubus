@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Object Type ID: %08x\n", test_object2.type->id);
 	}
 	uloop_init();
-	uloop_fd_add(&ctx->sock, ULOOP_READ | ULOOP_EDGE_TRIGGER);
+	ubus_add_uloop(ctx);
 	uloop_run();
 
 	ubus_free(ctx);

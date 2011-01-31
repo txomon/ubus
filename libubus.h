@@ -131,6 +131,11 @@ void ubus_free(struct ubus_context *ctx);
 
 const char *ubus_strerror(int error);
 
+static inline void ubus_add_uloop(struct ubus_context *ctx)
+{
+	uloop_fd_add(&ctx->sock, ULOOP_EDGE_TRIGGER | ULOOP_BLOCKING | ULOOP_READ);
+}
+
 /* ----------- raw request handling ----------- */
 
 /* wait for a request to complete and return its status */
