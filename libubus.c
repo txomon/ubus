@@ -183,6 +183,20 @@ static bool ubus_get_status(struct ubus_msghdr *hdr, int *ret)
 	return true;
 }
 
+static void req_data_cb(struct ubus_request *req, int type, struct blob_attr *data)
+{
+	struct blob_attr **attr;
+
+	if (req->raw_data_cb)
+		req->raw_data_cb(req, type, data);
+
+	if (!req->data_cb)
+		return;
+
+	attr = ubus_parse_msg(data);
+	req->data_cb(req, type, attr[UBUS_ATTR_DATA]);
+}
+
 static void ubus_process_req_data(struct ubus_request *req)
 {
 	struct ubus_pending_data *data;
@@ -192,7 +206,7 @@ static void ubus_process_req_data(struct ubus_request *req)
 			struct ubus_pending_data, list);
 		list_del(&data->list);
 		if (!req->cancelled)
-			req->data_cb(req, data->type, data->data);
+			req_data_cb(req, data->type, data->data);
 		free(data);
 	}
 }
@@ -232,7 +246,7 @@ static void ubus_req_data(struct ubus_request *req, struct ubus_msghdr *hdr)
 
 	if (!req->blocked) {
 		req->blocked = true;
-		req->data_cb(req, hdr->type, hdr->data);
+		req_data_cb(req, hdr->type, hdr->data);
 		ubus_process_req_data(req);
 		req->blocked = false;
 
@@ -304,7 +318,8 @@ found:
 	req.object = objid;
 	req.peer = hdr->peer;
 	req.seq = hdr->seq;
-	ret = obj->methods[method].handler(obj, &req, obj->methods[method].name,
+	ret = obj->methods[method].handler(ctx, obj, &req,
+					   obj->methods[method].name,
 					   attrbuf[UBUS_ATTR_DATA]);
 
 send:
@@ -329,7 +344,7 @@ static void ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 
 	case UBUS_MSG_DATA:
 		req = ubus_find_request(ctx, hdr->seq, hdr->peer);
-		if (req && req->data_cb)
+		if (req && (req->data_cb || req->raw_data_cb))
 			ubus_req_data(req, hdr);
 		break;
 
@@ -396,7 +411,7 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req)
 		case UBUS_MSG_STATUS:
 			return ubus_process_req_status(req, hdr);
 		case UBUS_MSG_DATA:
-			if (req->data_cb)
+			if (req->data_cb || req->raw_data_cb)
 				ubus_req_data(req, hdr);
 			continue;
 		default:
@@ -406,6 +421,21 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req)
 skip:
 		ubus_process_msg(ctx, hdr);
 	}
+}
+
+int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
+		    struct blob_attr *msg)
+{
+	int ret;
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, req->object);
+	blob_put(&b, UBUS_ATTR_DATA, blob_data(msg), blob_len(msg));
+	ret = ubus_send_msg(ctx, req->seq, b.head, UBUS_MSG_DATA, req->peer);
+	if (ret < 0)
+		return UBUS_STATUS_NO_DATA;
+
+	return 0;
 }
 
 void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method,
@@ -523,7 +553,7 @@ int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
 	ubus_start_request(ctx, &req, b.head, UBUS_MSG_PUBLISH, 0);
-	req.data_cb = ubus_publish_cb;
+	req.raw_data_cb = ubus_publish_cb;
 	req.priv = obj;
 	ret = ubus_complete_request(ctx, &req);
 	if (ret)

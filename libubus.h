@@ -6,12 +6,13 @@
 #include "ubusmsg.h"
 #include "ubus_common.h"
 
+struct ubus_context;
 struct ubus_msg_src;
 struct ubus_object;
 struct ubus_request;
 struct ubus_request_data;
 
-typedef int (*ubus_handler_t)(struct ubus_object *obj,
+typedef int (*ubus_handler_t)(struct ubus_context *ctx, struct ubus_object *obj,
 			      struct ubus_request_data *req,
 			      const char *method, struct blob_attr *msg);
 typedef void (*ubus_data_handler_t)(struct ubus_request *req,
@@ -105,6 +106,7 @@ struct ubus_request {
 	uint32_t peer;
 	uint32_t seq;
 
+	ubus_data_handler_t raw_data_cb;
 	ubus_data_handler_t data_cb;
 	ubus_complete_handler_t complete_cb;
 
@@ -152,4 +154,6 @@ void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *metho
 /* make an object visible to remote connections */
 int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj);
 
-
+/* send a reply to an incoming object method call */
+int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
+		    struct blob_attr *msg);

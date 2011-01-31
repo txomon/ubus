@@ -28,6 +28,14 @@ static void receive_lookup(struct ubus_request *req, int type, struct blob_attr 
 	}
 }
 
+static void receive_data(struct ubus_request *req, int type, struct blob_attr *msg)
+{
+	if (!msg)
+		return;
+
+	fprintf(stderr, "%s\n", blobmsg_format_json(msg, true));
+}
+
 static void store_objid(struct ubus_request *req, int type, struct blob_attr *msg)
 {
 	struct blob_attr **attr;
@@ -46,7 +54,7 @@ static uint32_t get_object(const char *name)
 	blob_buf_init(&b, 0);
 	blob_put_string(&b, UBUS_ATTR_OBJPATH, name);
 	ubus_start_request(ctx, &req, b.head, UBUS_MSG_LOOKUP, 0);
-	req.data_cb = store_objid;
+	req.raw_data_cb = store_objid;
 	if (ubus_complete_request(ctx, &req))
 		return 0;
 
@@ -87,7 +95,7 @@ int main(int argc, char **argv)
 			blob_put_string(&b, UBUS_ATTR_OBJPATH, argv[2]);
 
 		ubus_start_request(ctx, &req, b.head, UBUS_MSG_LOOKUP, 0);
-		req.data_cb = receive_lookup;
+		req.raw_data_cb = receive_lookup;
 	} else if (!strcmp(cmd, "call")) {
 		if (argc < 4 || argc > 5)
 			return usage(argv[0]);
@@ -101,6 +109,7 @@ int main(int argc, char **argv)
 		blob_put_int32(&b, UBUS_ATTR_OBJID, objid);
 		blob_put_string(&b, UBUS_ATTR_METHOD, argv[3]);
 		ubus_start_request(ctx, &req, b.head, UBUS_MSG_INVOKE, objid);
+		req.data_cb = receive_data;
 	} else {
 		return usage(argv[0]);
 	}

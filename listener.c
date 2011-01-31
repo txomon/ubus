@@ -1,6 +1,7 @@
 #include "libubus.h"
 
 static struct ubus_context *ctx;
+struct blob_buf b;
 
 static const struct ubus_signature test_object_sig[] = {
 	UBUS_METHOD_START("hello"),
@@ -15,10 +16,13 @@ static const struct ubus_signature test_object_sig[] = {
 static struct ubus_object_type test_object_type =
 	UBUS_OBJECT_TYPE("test", test_object_sig);
 
-static int test_hello(struct ubus_object *obj, struct ubus_request_data *req,
-			  const char *method, struct blob_attr *msg)
+static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
+		      struct ubus_request_data *req, const char *method,
+		      struct blob_attr *msg)
 {
-	fprintf(stderr, "Hello, world!\n");
+	blob_buf_init(&b, 0);
+	blobmsg_add_string(&b, "message", "Hello, world!\n");
+	ubus_send_reply(ctx, req, b.head);
 	return 0;
 }
 
