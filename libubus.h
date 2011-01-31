@@ -125,7 +125,6 @@ struct ubus_request {
 	void *priv;
 };
 
-#define BLOBMSG_END_TABLE	BLOBMSG_TYPE_UNSPEC
 
 struct ubus_context *ubus_connect(const char *path);
 void ubus_free(struct ubus_context *ctx);
