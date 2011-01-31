@@ -9,3 +9,4 @@ ubus.sock
 listener
 ubusd
 ubus
+install_manifest.txt
