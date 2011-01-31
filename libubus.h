@@ -79,6 +79,8 @@ struct ubus_context {
 	uint32_t local_id;
 	uint32_t request_seq;
 
+	void (*connection_lost)(struct ubus_context *ctx);
+
 	struct {
 		struct ubus_msghdr hdr;
 		char data[UBUS_MAX_MSGLEN - sizeof(struct ubus_msghdr)];

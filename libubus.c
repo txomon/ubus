@@ -275,12 +275,16 @@ static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hd
 
 	ubus_parse_msg(hdr->data);
 
-	if (!attrbuf[UBUS_ATTR_METHOD] || !attrbuf[UBUS_ATTR_OBJID]) {
+	if (!attrbuf[UBUS_ATTR_OBJID])
+		return;
+
+	objid = blob_get_int32(attrbuf[UBUS_ATTR_OBJID]);
+
+	if (!attrbuf[UBUS_ATTR_METHOD]) {
 		ret = UBUS_STATUS_INVALID_ARGUMENT;
 		goto send;
 	}
 
-	objid = blob_get_int32(attrbuf[UBUS_ATTR_OBJID]);
 	obj = avl_find_element(&ctx->objects, &objid, obj, avl);
 	if (!obj) {
 		ret = UBUS_STATUS_NOT_FOUND;
@@ -363,6 +367,9 @@ static void ubus_handle_data(struct uloop_fd *u, unsigned int events)
 
 	while (get_next_msg(ctx, false))
 		ubus_process_msg(ctx, hdr);
+
+	if (u->eof)
+		ctx->connection_lost(ctx);
 }
 
 int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req)
@@ -528,6 +535,12 @@ int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
 	return 0;
 }
 
+void ubus_default_connection_lost(struct ubus_context *ctx)
+{
+	if (ctx->sock.registered)
+		uloop_end();
+}
+
 struct ubus_context *ubus_connect(const char *path)
 {
 	struct ubus_context *ctx;
@@ -578,6 +591,8 @@ struct ubus_context *ubus_connect(const char *path)
 
 	ctx->local_id = hdr.hdr.peer;
 	free(buf);
+
+	ctx->connection_lost = ubus_default_connection_lost;
 
 	INIT_LIST_HEAD(&ctx->requests);
 	avl_init(&ctx->objects, ubus_cmp_id, false, NULL);
