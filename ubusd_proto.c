@@ -7,7 +7,7 @@ static int *retmsg_data;
 
 static struct blob_attr *attrbuf[UBUS_ATTR_MAX];
 
-typedef int (*ubus_cmd_cb)(struct ubus_client *cl, struct ubus_msg_buf *ub);
+typedef int (*ubus_cmd_cb)(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr);
 
 static const struct blob_attr_info ubus_policy[UBUS_ATTR_MAX] = {
 	[UBUS_ATTR_SIGNATURE] = { .type = BLOB_ATTR_NESTED },
@@ -62,19 +62,17 @@ bool ubusd_send_hello(struct ubus_client *cl)
 	return true;
 }
 
-static int ubusd_send_pong(struct ubus_client *cl, struct ubus_msg_buf *ub)
+static int ubusd_send_pong(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	ub->hdr.type = UBUS_MSG_DATA;
 	ubus_msg_send(cl, ubus_msg_ref(ub));
 	return 0;
 }
 
-static int ubusd_handle_publish(struct ubus_client *cl, struct ubus_msg_buf *ub)
+static int ubusd_handle_publish(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	struct ubus_object *obj;
-	struct blob_attr **attr;
 
-	attr = ubus_parse_msg(ub->data);
 	obj = ubusd_create_object(cl, attr);
 	if (!obj)
 		return UBUS_STATUS_INVALID_ARGUMENT;
@@ -115,16 +113,14 @@ static void ubusd_send_obj(struct ubus_client *cl, struct ubus_msg_buf *ub, stru
 	ubus_msg_send(cl, ub);
 }
 
-static int ubusd_handle_lookup(struct ubus_client *cl, struct ubus_msg_buf *ub)
+static int ubusd_handle_lookup(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	struct ubus_object *obj;
-	struct blob_attr **attr;
 	char *objpath;
 	bool wildcard = false;
 	bool found = false;
 	int len;
 
-	attr = ubus_parse_msg(ub->data);
 	if (!attr[UBUS_ATTR_OBJPATH]) {
 		avl_for_each_element(&path, obj, path)
 			ubusd_send_obj(cl, ub, obj);
@@ -163,14 +159,12 @@ static int ubusd_handle_lookup(struct ubus_client *cl, struct ubus_msg_buf *ub)
 	return 0;
 }
 
-static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub)
+static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	struct ubus_object *obj = NULL;
-	struct blob_attr **attr;
 	struct ubus_id *id;
 	const char *method;
 
-	attr = ubus_parse_msg(ub->data);
 	if (!attr[UBUS_ATTR_METHOD] || !attr[UBUS_ATTR_OBJID])
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
@@ -201,14 +195,14 @@ static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub)
 	return -1;
 }
 
-static int ubusd_handle_status(struct ubus_client *cl, struct ubus_msg_buf *ub)
+static int ubusd_handle_response(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
-	struct blob_attr **attr;
 	struct ubus_object *obj;
 	struct ubus_id *id;
 
-	attr = ubus_parse_msg(ub->data);
-	if (!attr[UBUS_ATTR_OBJID] || !attr[UBUS_ATTR_STATUS])
+	if (!attr[UBUS_ATTR_OBJID] ||
+	    (ub->hdr.type == UBUS_MSG_STATUS && !attr[UBUS_ATTR_STATUS]) ||
+	    (ub->hdr.type == UBUS_MSG_DATA && !attr[UBUS_ATTR_DATA]))
 		goto error;
 
 	id = ubus_find_id(&objects, blob_get_int32(attr[UBUS_ATTR_OBJID]));
@@ -237,7 +231,8 @@ static const ubus_cmd_cb handlers[__UBUS_MSG_LAST] = {
 	[UBUS_MSG_PUBLISH] = ubusd_handle_publish,
 	[UBUS_MSG_LOOKUP] = ubusd_handle_lookup,
 	[UBUS_MSG_INVOKE] = ubusd_handle_invoke,
-	[UBUS_MSG_STATUS] = ubusd_handle_status,
+	[UBUS_MSG_STATUS] = ubusd_handle_response,
+	[UBUS_MSG_DATA] = ubusd_handle_response,
 };
 
 void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)
@@ -252,7 +247,7 @@ void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)
 		cb = handlers[ub->hdr.type];
 
 	if (cb)
-		ret = cb(cl, ub);
+		ret = cb(cl, ub, ubus_parse_msg(ub->data));
 	else
 		ret = UBUS_STATUS_INVALID_COMMAND;
 
