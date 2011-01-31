@@ -5,24 +5,39 @@ static struct ubus_context *ctx;
 static const struct ubus_signature test_object_sig[] = {
 	UBUS_METHOD_START("hello"),
 	  UBUS_ARRAY("test"),
-	    UBUS_TABLE_START(NULL),
-	      UBUS_FIELD(INT32, "id"),
-	      UBUS_FIELD(STRING, "msg"),
-	    UBUS_TABLE_END(),
+		UBUS_TABLE_START(NULL),
+		  UBUS_FIELD(INT32, "id"),
+		  UBUS_FIELD(STRING, "msg"),
+		UBUS_TABLE_END(),
 	UBUS_METHOD_END(),
 };
 
 static struct ubus_object_type test_object_type =
 	UBUS_OBJECT_TYPE("test", test_object_sig);
 
+static int test_hello(struct ubus_object *obj, struct ubus_request_data *req,
+			  const char *method, struct blob_attr *msg)
+{
+	fprintf(stderr, "Hello, world!\n");
+	return 0;
+}
+
+static const struct ubus_method test_methods[] = {
+	{ .name = "hello", .handler = test_hello },
+};
+
 static struct ubus_object test_object = {
 	.name = "test",
 	.type = &test_object_type,
+	.methods = test_methods,
+	.n_methods = ARRAY_SIZE(test_methods),
 };
 
 static struct ubus_object test_object2 = {
 	.name = "test2",
 	.type = &test_object_type,
+	.methods = test_methods,
+	.n_methods = ARRAY_SIZE(test_methods),
 };
 
 int main(int argc, char **argv)

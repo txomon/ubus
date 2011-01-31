@@ -24,6 +24,7 @@ const char *__ubus_strerror[__UBUS_STATUS_LAST] = {
 	[UBUS_STATUS_OK] = "Success",
 	[UBUS_STATUS_INVALID_COMMAND] = "Invalid command",
 	[UBUS_STATUS_INVALID_ARGUMENT] = "Invalid argument",
+	[UBUS_STATUS_METHOD_NOT_FOUND] = "Method not found",
 	[UBUS_STATUS_NOT_FOUND] = "Not found",
 	[UBUS_STATUS_NO_DATA] = "No response",
 };
@@ -265,14 +266,43 @@ static struct ubus_request *ubus_find_request(struct ubus_context *ctx, uint32_t
 
 static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 {
+	struct ubus_request_data req;
+	struct ubus_object *obj;
 	uint32_t objid = 0;
+	int method;
 	int ret = 0;
 
 	ubus_parse_msg(hdr->data);
 
-	if (attrbuf[UBUS_ATTR_OBJID])
-		objid = blob_get_int32(attrbuf[UBUS_ATTR_OBJID]);
+	if (!attrbuf[UBUS_ATTR_METHOD] || !attrbuf[UBUS_ATTR_OBJID]) {
+		ret = UBUS_STATUS_INVALID_ARGUMENT;
+		goto send;
+	}
 
+	objid = blob_get_int32(attrbuf[UBUS_ATTR_OBJID]);
+	obj = avl_find_element(&ctx->objects, &objid, obj, avl);
+	if (!obj) {
+		ret = UBUS_STATUS_NOT_FOUND;
+		goto send;
+	}
+
+	for (method = 0; method < obj->n_methods; method++)
+		if (!strcmp(obj->methods[method].name,
+		            blob_data(attrbuf[UBUS_ATTR_METHOD])))
+			goto found;
+
+	/* not found */
+	ret = UBUS_STATUS_METHOD_NOT_FOUND;
+	goto send;
+
+found:
+	req.object = objid;
+	req.peer = hdr->peer;
+	req.seq = hdr->seq;
+	ret = obj->methods[method].handler(obj, &req, obj->methods[method].name,
+					   attrbuf[UBUS_ATTR_DATA]);
+
+send:
 	blob_buf_init(&b, 0);
 	blob_put_int32(&b, UBUS_ATTR_STATUS, ret);
 	blob_put_int32(&b, UBUS_ATTR_OBJID, objid);

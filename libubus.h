@@ -11,9 +11,9 @@ struct ubus_object;
 struct ubus_request;
 struct ubus_request_data;
 
-typedef void (*ubus_handler_t)(struct ubus_object *obj,
-			       struct ubus_request_data *req,
-			       const char *method, struct blob_attr *msg);
+typedef int (*ubus_handler_t)(struct ubus_object *obj,
+			      struct ubus_request_data *req,
+			      const char *method, struct blob_attr *msg);
 typedef void (*ubus_data_handler_t)(struct ubus_request *req,
 				    int type, struct blob_attr *msg);
 typedef void (*ubus_complete_handler_t)(struct ubus_request *req, int ret);
@@ -52,6 +52,11 @@ struct ubus_object_type {
 	const struct ubus_signature *signature;
 };
 
+struct ubus_method {
+	const char *name;
+	ubus_handler_t handler;
+};
+
 struct ubus_object {
 	struct avl_node avl;
 
@@ -60,6 +65,9 @@ struct ubus_object {
 
 	const char *path;
 	struct ubus_object_type *type;
+
+	const struct ubus_method *methods;
+	int n_methods;
 };
 
 struct ubus_context {
