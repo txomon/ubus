@@ -55,7 +55,7 @@ static int ubus_cmp_id(const void *k1, const void *k2, void *ptr)
 		return *id1 > *id2;
 }
 
-struct blob_attr **ubus_parse_msg(struct blob_attr *msg)
+static struct blob_attr **ubus_parse_msg(struct blob_attr *msg)
 {
 	blob_parse(msg, attrbuf, ubus_policy, UBUS_ATTR_MAX);
 	return attrbuf;

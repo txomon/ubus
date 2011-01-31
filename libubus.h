@@ -132,10 +132,6 @@ void ubus_free(struct ubus_context *ctx);
 
 const char *ubus_strerror(int error);
 
-/* ----------- helpers for message handling ----------- */
-
-struct blob_attr **ubus_parse_msg(struct blob_attr *msg);
-
 /* ----------- raw request handling ----------- */
 
 /* wait for a request to complete and return its status */
