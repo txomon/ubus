@@ -657,36 +657,27 @@ struct ubus_context *ubus_connect(const char *path)
 		goto error;
 
 	ctx->sock.fd = usock(USOCK_UNIX, path, NULL);
-	if (ctx->sock.fd < 0) {
-		DPRINTF("Failed to connect to server\n");
+	if (ctx->sock.fd < 0)
 		goto error_free;
-	}
+
 	ctx->sock.cb = ubus_handle_data;
 
-	if (read(ctx->sock.fd, &hdr, sizeof(hdr)) != sizeof(hdr)) {
-		DPRINTF("Failed to read initial message data\n");
+	if (read(ctx->sock.fd, &hdr, sizeof(hdr)) != sizeof(hdr))
 		goto error_close;
-	}
 
-	if (!ubus_validate_hdr(&hdr.hdr)) {
-		DPRINTF("Failed to validate initial message header\n");
+	if (!ubus_validate_hdr(&hdr.hdr))
 		goto error_close;
-	}
 
-	if (hdr.hdr.type != UBUS_MSG_HELLO) {
-		DPRINTF("Unexpected initial message\n");
+	if (hdr.hdr.type != UBUS_MSG_HELLO)
 		goto error_close;
-	}
 
 	buf = calloc(1, blob_raw_len(&hdr.data));
 	if (!buf)
 		goto error_close;
 
 	memcpy(buf, &hdr.data, sizeof(hdr.data));
-	if (read(ctx->sock.fd, blob_data(buf), blob_len(buf)) != blob_len(buf)) {
-		DPRINTF("Failed to retrieve initial message data\n");
+	if (read(ctx->sock.fd, blob_data(buf), blob_len(buf)) != blob_len(buf))
 		goto error_free_buf;
-	}
 
 	ctx->local_id = hdr.hdr.peer;
 	free(buf);
@@ -696,10 +687,8 @@ struct ubus_context *ubus_connect(const char *path)
 	INIT_LIST_HEAD(&ctx->requests);
 	avl_init(&ctx->objects, ubus_cmp_id, false, NULL);
 
-	if (!ctx->local_id) {
-		DPRINTF("Failed to get local peer id\n");
+	if (!ctx->local_id)
 		goto error_close;
-	}
 
 	return ctx;
 
