@@ -11,7 +11,11 @@ struct ubus_msg_src;
 struct ubus_object;
 struct ubus_request;
 struct ubus_request_data;
+struct ubus_object_data;
 
+typedef void (*ubus_lookup_handler_t)(struct ubus_context *ctx,
+				      struct ubus_object_data *obj,
+				      void *priv);
 typedef int (*ubus_handler_t)(struct ubus_context *ctx, struct ubus_object *obj,
 			      struct ubus_request_data *req,
 			      const char *method, struct blob_attr *msg);
@@ -88,6 +92,13 @@ struct ubus_context {
 	} msgbuf;
 };
 
+struct ubus_object_data {
+	uint32_t id;
+	uint32_t type_id;
+	const char *path;
+	struct blob_attr *signature;
+};
+
 struct ubus_request_data {
 	uint32_t object;
 	uint32_t peer;
@@ -140,6 +151,13 @@ void ubus_complete_request_async(struct ubus_context *ctx,
 
 /* abort an asynchronous request */
 void ubus_abort_request(struct ubus_context *ctx, struct ubus_request *req);
+
+/* ----------- objects ----------- */
+
+int ubus_lookup(struct ubus_context *ctx, const char *path,
+		ubus_lookup_handler_t cb, void *priv);
+
+int ubus_lookup_id(struct ubus_context *ctx, const char *path, uint32_t *id);
 
 /* ----------- rpc ----------- */
 

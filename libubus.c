@@ -423,6 +423,74 @@ skip:
 	}
 }
 
+struct ubus_lookup_request {
+	struct ubus_request req;
+	ubus_lookup_handler_t cb;
+};
+
+static void ubus_lookup_cb(struct ubus_request *ureq, int type, struct blob_attr *msg)
+{
+	struct ubus_lookup_request *req;
+	struct ubus_object_data obj;
+	struct blob_attr **attr;
+
+	req = container_of(ureq, struct ubus_lookup_request, req);
+	attr = ubus_parse_msg(msg);
+
+	if (!attr[UBUS_ATTR_OBJID] || !attr[UBUS_ATTR_OBJPATH] ||
+	    !attr[UBUS_ATTR_OBJTYPE])
+		return;
+
+	memset(&obj, 0, sizeof(obj));
+	obj.id = blob_get_int32(attr[UBUS_ATTR_OBJID]);
+	obj.path = blob_data(attr[UBUS_ATTR_OBJPATH]);
+	obj.type_id = blob_get_int32(attr[UBUS_ATTR_OBJTYPE]);
+	obj.signature = attr[UBUS_ATTR_SIGNATURE];
+	req->cb(ureq->ctx, &obj, ureq->priv);
+}
+
+int ubus_lookup(struct ubus_context *ctx, const char *path,
+		ubus_lookup_handler_t cb, void *priv)
+{
+	struct ubus_lookup_request lookup;
+
+	blob_buf_init(&b, 0);
+	if (path)
+		blob_put_string(&b, UBUS_ATTR_OBJPATH, path);
+	ubus_start_request(ctx, &lookup.req, b.head, UBUS_MSG_LOOKUP, 0);
+	lookup.req.raw_data_cb = ubus_lookup_cb;
+	lookup.req.priv = priv;
+	lookup.cb = cb;
+	return ubus_complete_request(ctx, &lookup.req);
+}
+
+static void ubus_lookup_id_cb(struct ubus_request *req, int type, struct blob_attr *msg)
+{
+	struct blob_attr **attr;
+	uint32_t *id = req->priv;
+
+	attr = ubus_parse_msg(msg);
+
+	if (!attr[UBUS_ATTR_OBJID])
+		return;
+
+	*id = blob_get_int32(attr[UBUS_ATTR_OBJID]);
+}
+
+int ubus_lookup_id(struct ubus_context *ctx, const char *path, uint32_t *id)
+{
+	struct ubus_request req;
+
+	blob_buf_init(&b, 0);
+	if (path)
+		blob_put_string(&b, UBUS_ATTR_OBJPATH, path);
+	ubus_start_request(ctx, &req, b.head, UBUS_MSG_LOOKUP, 0);
+	req.raw_data_cb = ubus_lookup_id_cb;
+	req.priv = id;
+
+	return ubus_complete_request(ctx, &req);
+}
+
 int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
 		    struct blob_attr *msg)
 {
