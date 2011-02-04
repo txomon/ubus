@@ -20,8 +20,12 @@ static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
 		      struct ubus_request_data *req, const char *method,
 		      struct blob_attr *msg)
 {
+	char *strbuf;
+
 	blob_buf_init(&b, 0);
-	blobmsg_add_string(&b, "message", "Hello, world!\n");
+	strbuf = blobmsg_alloc_string_buffer(&b, "message", 64 + strlen(obj->name));
+	sprintf(strbuf, "%s: Hello, world\n", obj->name);
+	blobmsg_add_string_buffer(&b);
 	ubus_send_reply(ctx, req, b.head);
 	return 0;
 }
