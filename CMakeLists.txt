@@ -25,3 +25,5 @@ INSTALL(TARGETS ubus cli
 INSTALL(TARGETS ubusd
 	RUNTIME DESTINATION sbin
 )
+
+INSTALL(FILES ubusmsg.h ubus_common.h libubus.h DESTINATION include)
