@@ -78,5 +78,5 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Failed: %s\n", ubus_strerror(ret));
 
 	ubus_free(ctx);
-	return 0;
+	return ret;
 }
