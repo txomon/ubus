@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "ubusmsg.h"
 #include "ubusd_id.h"
 
 static int random_fd = -1;
@@ -30,14 +31,19 @@ void ubus_init_id_tree(struct avl_tree *tree)
 	avl_init(tree, ubus_cmp_id, false, NULL);
 }
 
-bool ubus_alloc_id(struct avl_tree *tree, struct ubus_id *id)
+bool ubus_alloc_id(struct avl_tree *tree, struct ubus_id *id, uint32_t val)
 {
 	id->avl.key = &id->id;
+	if (val) {
+		id->id = val;
+		return avl_insert(tree, &id->avl) == 0;
+	}
+
 	do {
 		if (read(random_fd, &id->id, sizeof(id->id)) != sizeof(id->id))
 			return false;
 
-		if (!id->id)
+		if (id->id < UBUS_SYSTEM_OBJECT_MAX)
 			continue;
 	} while (avl_insert(tree, &id->avl) != 0);
 

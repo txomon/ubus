@@ -47,7 +47,7 @@ static struct ubus_object_type *ubus_create_obj_type(struct blob_attr *sig)
 	type = calloc(1, sizeof(*type));
 	type->refcount = 1;
 
-	if (!ubus_alloc_id(&obj_types, &type->id))
+	if (!ubus_alloc_id(&obj_types, &type->id, 0))
 		goto error_free;
 
 	INIT_LIST_HEAD(&type->methods);
@@ -85,6 +85,28 @@ static struct ubus_object_type *ubus_get_obj_type(uint32_t obj_id)
 	return type;
 }
 
+struct ubus_object *ubusd_create_object_internal(struct ubus_object_type *type, uint32_t id)
+{
+	struct ubus_object *obj;
+
+	obj = calloc(1, sizeof(*obj));
+	if (!obj)
+		return NULL;
+
+	if (!ubus_alloc_id(&objects, &obj->id, id))
+		goto error_free;
+
+	obj->type = type;
+	INIT_LIST_HEAD(&obj->list);
+	type->refcount++;
+
+	return obj;
+
+error_free:
+	free(obj);
+	return NULL;
+}
+
 struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr **attr)
 {
 	struct ubus_object *obj;
@@ -98,28 +120,30 @@ struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr
 	if (!type)
 		return NULL;
 
-	obj = calloc(1, sizeof(*obj));
-	if (!ubus_alloc_id(&objects, &obj->id))
-		goto error_free;
+	obj = ubusd_create_object_internal(type, 0);
+	ubus_unref_object_type(type);
+
+	if (!obj)
+		return NULL;
 
 	if (attr[UBUS_ATTR_OBJPATH]) {
 		obj->path.key = strdup(blob_data(attr[UBUS_ATTR_OBJPATH]));
-		if (avl_insert(&path, &obj->path) != 0)
-			goto error_del_id;
+		if (!obj->path.key)
+			goto free;
+
+		if (avl_insert(&path, &obj->path) != 0) {
+			free(obj->path.key);
+			obj->path.key = NULL;
+			goto free;
+		}
 	}
 
-	obj->type = type;
 	obj->client = cl;
 	list_add(&obj->list, &cl->objects);
-
 	return obj;
 
-error_del_id:
-	free(obj->path.key);
-	ubus_free_id(&objects, &obj->id);
-error_free:
-	ubus_unref_object_type(type);
-	free(obj);
+free:
+	ubusd_free_object(obj);
 	return NULL;
 }
 
@@ -129,7 +153,8 @@ void ubusd_free_object(struct ubus_object *obj)
 		avl_delete(&path, &obj->path);
 		free(obj->path.key);
 	}
-	list_del(&obj->list);
+	if (!list_empty(&obj->list))
+		list_del(&obj->list);
 	ubus_free_id(&objects, &obj->id);
 	ubus_unref_object_type(obj->type);
 	free(obj);

@@ -8,6 +8,9 @@
 
 #define UBUS_MAX_MSGLEN	65535
 
+#define UBUS_SYSTEM_OBJECT_EVENT	1
+#define UBUS_SYSTEM_OBJECT_MAX		1024
+
 struct ubus_msghdr {
 	uint8_t version;
 	uint8_t type;

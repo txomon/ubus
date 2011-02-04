@@ -258,7 +258,7 @@ static bool get_next_connection(int fd)
 	cl->sock.fd = client_fd;
 
 	INIT_LIST_HEAD(&cl->objects);
-	if (!ubus_alloc_id(&clients, &cl->id))
+	if (!ubus_alloc_id(&clients, &cl->id, 0))
 		goto error;
 
 	cl->sock.cb = client_cb;
