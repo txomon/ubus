@@ -62,6 +62,11 @@ static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
 			event, ubus_strerror(ret));
 	}
 
+	uloop_init();
+	ubus_add_uloop(ctx);
+	uloop_run();
+	uloop_done();
+
 	return 0;
 }
 
