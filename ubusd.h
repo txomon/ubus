@@ -60,5 +60,8 @@ bool ubusd_send_hello(struct ubus_client *cl);
 
 struct blob_attr **ubus_parse_msg(struct blob_attr *msg);
 
+void ubusd_event_init(void);
+void ubusd_event_cleanup_object(struct ubus_object *obj);
+
 
 #endif

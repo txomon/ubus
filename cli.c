@@ -34,6 +34,7 @@ static int usage(char *prog)
 		"Commands:\n"
 		" - list [<path>]			List objects\n"
 		" - call <path> <method> [<message>]	Call an object method\n"
+		" - listen [<path>...]			Listen for events\n"
 		"\n", prog);
 	return 1;
 }
@@ -70,6 +71,8 @@ int main(int argc, char **argv)
 		ret = ubus_lookup_id(ctx, argv[2], &id);
 		if (!ret)
 			ret = ubus_invoke(ctx, id, argv[3], NULL, receive_data, NULL);
+	} else if (!strcmp(cmd, "listen")) {
+		ret = ubus_invoke(ctx, UBUS_SYSTEM_OBJECT_EVENT, "listen", NULL, receive_data, NULL);
 	} else {
 		return usage(argv[0]);
 	}

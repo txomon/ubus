@@ -18,6 +18,16 @@ static int ubus_cmp_id(const void *k1, const void *k2, void *ptr)
 		return *id1 > *id2;
 }
 
+static int ubus_cmp_str(const void *k1, const void *k2, void *ptr)
+{
+	return strcmp(k1, k2);
+}
+
+void ubus_init_string_tree(struct avl_tree *tree, bool dup)
+{
+	avl_init(tree, ubus_cmp_str, dup, NULL);
+}
+
 void ubus_init_id_tree(struct avl_tree *tree)
 {
 	if (random_fd < 0) {

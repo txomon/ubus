@@ -98,7 +98,8 @@ struct ubus_object *ubusd_create_object_internal(struct ubus_object_type *type, 
 
 	obj->type = type;
 	INIT_LIST_HEAD(&obj->list);
-	type->refcount++;
+	if (type)
+		type->refcount++;
 
 	return obj;
 
@@ -156,18 +157,15 @@ void ubusd_free_object(struct ubus_object *obj)
 	if (!list_empty(&obj->list))
 		list_del(&obj->list);
 	ubus_free_id(&objects, &obj->id);
-	ubus_unref_object_type(obj->type);
+	if (obj->type)
+		ubus_unref_object_type(obj->type);
 	free(obj);
-}
-
-static int ubus_cmp_path(const void *k1, const void *k2, void *ptr)
-{
-	return strcmp(k1, k2);
 }
 
 static void __init ubusd_obj_init(void)
 {
 	ubus_init_id_tree(&objects);
 	ubus_init_id_tree(&obj_types);
-	avl_init(&path, ubus_cmp_path, false, NULL);
+	ubus_init_string_tree(&path, false);
+	ubusd_event_init();
 }

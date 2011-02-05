@@ -10,6 +10,7 @@ struct ubus_id {
 };
 
 void ubus_init_id_tree(struct avl_tree *tree);
+void ubus_init_string_tree(struct avl_tree *tree, bool dup);
 bool ubus_alloc_id(struct avl_tree *tree, struct ubus_id *id, uint32_t val);
 
 static inline void ubus_free_id(struct avl_tree *tree, struct ubus_id *id)

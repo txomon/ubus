@@ -6,7 +6,7 @@ ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -g3)
 ADD_LIBRARY(ubus SHARED libubus.c)
 TARGET_LINK_LIBRARIES(ubus ubox)
 
-ADD_EXECUTABLE(ubusd ubusd.c ubusd_id.c ubusd_obj.c ubusd_proto.c)
+ADD_EXECUTABLE(ubusd ubusd.c ubusd_id.c ubusd_obj.c ubusd_proto.c ubusd_event.c)
 TARGET_LINK_LIBRARIES(ubusd ubox)
 
 ADD_EXECUTABLE(cli cli.c)
