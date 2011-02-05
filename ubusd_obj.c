@@ -118,11 +118,12 @@ struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr
 	else if (attr[UBUS_ATTR_SIGNATURE])
 		type = ubus_create_obj_type(attr[UBUS_ATTR_SIGNATURE]);
 
-	if (!type)
+	if (!!type ^ !!attr[UBUS_ATTR_OBJPATH])
 		return NULL;
 
 	obj = ubusd_create_object_internal(type, 0);
-	ubus_unref_object_type(type);
+	if (type)
+		ubus_unref_object_type(type);
 
 	if (!obj)
 		return NULL;
@@ -141,6 +142,8 @@ struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr
 
 	obj->client = cl;
 	list_add(&obj->list, &cl->objects);
+	INIT_LIST_HEAD(&obj->events);
+
 	return obj;
 
 free:
@@ -150,6 +153,7 @@ free:
 
 void ubusd_free_object(struct ubus_object *obj)
 {
+	ubusd_event_cleanup_object(obj);
 	if (obj->path.key) {
 		avl_delete(&path, &obj->path);
 		free(obj->path.key);

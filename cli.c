@@ -39,6 +39,32 @@ static int usage(char *prog)
 	return 1;
 }
 
+static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
+{
+	static struct ubus_object listener;
+	const char *event;
+	int ret = 0;
+
+	if (!argc) {
+		event = "*";
+		ret = ubus_register_event_handler(ctx, &listener, NULL);
+	}
+
+	for (;argc;argv++, argc--) {
+		event = argv[0];
+		ret = ubus_register_event_handler(ctx, &listener, argv[0]);
+		if (ret)
+			break;
+	}
+
+	if (ret) {
+		fprintf(stderr, "Error while registering for event '%s': %s\n",
+			event, ubus_strerror(ret));
+	}
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	static struct ubus_context *ctx;
@@ -72,7 +98,7 @@ int main(int argc, char **argv)
 		if (!ret)
 			ret = ubus_invoke(ctx, id, argv[3], NULL, receive_data, NULL);
 	} else if (!strcmp(cmd, "listen")) {
-		ret = ubus_invoke(ctx, UBUS_SYSTEM_OBJECT_EVENT, "listen", NULL, receive_data, NULL);
+		ret = ubus_cli_listen(ctx, argc - 2, argv + 2);
 	} else {
 		return usage(argv[0]);
 	}

@@ -203,18 +203,16 @@ static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub, 
 static int ubusd_handle_response(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	struct ubus_object *obj;
-	struct ubus_id *id;
 
 	if (!attr[UBUS_ATTR_OBJID] ||
 	    (ub->hdr.type == UBUS_MSG_STATUS && !attr[UBUS_ATTR_STATUS]) ||
 	    (ub->hdr.type == UBUS_MSG_DATA && !attr[UBUS_ATTR_DATA]))
 		goto error;
 
-	id = ubus_find_id(&objects, blob_get_int32(attr[UBUS_ATTR_OBJID]));
-	if (!id)
+	obj = ubusd_find_object(blob_get_int32(attr[UBUS_ATTR_OBJID]));
+	if (!obj)
 		goto error;
 
-	obj = container_of(id, struct ubus_object, id);
 	if (cl != obj->client)
 		goto error;
 

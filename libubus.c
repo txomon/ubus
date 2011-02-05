@@ -27,6 +27,7 @@ const char *__ubus_strerror[__UBUS_STATUS_LAST] = {
 	[UBUS_STATUS_METHOD_NOT_FOUND] = "Method not found",
 	[UBUS_STATUS_NOT_FOUND] = "Not found",
 	[UBUS_STATUS_NO_DATA] = "No response",
+	[UBUS_STATUS_PERMISSION_DENIED] = "Permission denied",
 };
 
 static struct blob_buf b;
@@ -605,21 +606,21 @@ static bool ubus_push_object_type(struct ubus_object_type *type)
 	return true;
 }
 
-int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
+static int __ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
 {
 	struct ubus_request req;
 	int ret;
 
-	if (obj->id || !obj->name || !obj->type)
-		return UBUS_STATUS_INVALID_ARGUMENT;
-
 	blob_buf_init(&b, 0);
-	blob_put_string(&b, UBUS_ATTR_OBJPATH, obj->name);
 
-	if (obj->type->id)
-		blob_put_int32(&b, UBUS_ATTR_OBJTYPE, obj->type->id);
-	else if (!ubus_push_object_type(obj->type))
-		return UBUS_STATUS_INVALID_ARGUMENT;
+	if (obj->name && obj->type) {
+		blob_put_string(&b, UBUS_ATTR_OBJPATH, obj->name);
+
+		if (obj->type->id)
+			blob_put_int32(&b, UBUS_ATTR_OBJTYPE, obj->type->id);
+		else if (!ubus_push_object_type(obj->type))
+			return UBUS_STATUS_INVALID_ARGUMENT;
+	}
 
 	ubus_start_request(ctx, &req, b.head, UBUS_MSG_PUBLISH, 0);
 	req.raw_data_cb = ubus_publish_cb;
@@ -633,6 +634,43 @@ int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
 
 	return 0;
 }
+
+int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
+{
+	if (!obj->name || !obj->type)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	return __ubus_publish(ctx, obj);
+}
+
+int ubus_register_event_handler(struct ubus_context *ctx, struct ubus_object *obj,
+				const char *pattern)
+{
+	struct blob_buf b2;
+	int ret;
+
+	if (!obj->id) {
+		if (!!obj->name ^ !!obj->type)
+			return UBUS_STATUS_INVALID_ARGUMENT;
+
+		ret = __ubus_publish(ctx, obj);
+		if (ret)
+			return ret;
+	}
+
+	/* use a second buffer, ubus_invoke() overwrites the primary one */
+	memset(&b2, 0, sizeof(b2));
+	blob_buf_init(&b2, 0);
+	blobmsg_add_u32(&b2, "object", obj->id);
+	if (pattern)
+		blobmsg_add_string(&b2, "pattern", pattern);
+
+	ret = ubus_invoke(ctx, UBUS_SYSTEM_OBJECT_EVENT, "register", b2.head,
+			  NULL, NULL);
+
+	return 0;
+}
+
 
 void ubus_default_connection_lost(struct ubus_context *ctx)
 {
