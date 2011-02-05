@@ -58,14 +58,14 @@ bool ubusd_send_hello(struct ubus_client *cl)
 		return false;
 
 	ubus_msg_init(ub, UBUS_MSG_HELLO, 0, cl->id.id);
-	ubus_msg_send(cl, ub);
+	ubus_msg_send(cl, ub, true);
 	return true;
 }
 
 static int ubusd_send_pong(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	ub->hdr.type = UBUS_MSG_DATA;
-	ubus_msg_send(cl, ubus_msg_ref(ub));
+	ubus_msg_send(cl, ub, false);
 	return 0;
 }
 
@@ -86,7 +86,7 @@ static int ubusd_handle_publish(struct ubus_client *cl, struct ubus_msg_buf *ub,
 	if (!ub)
 		return UBUS_STATUS_NO_DATA;
 
-	ubus_msg_send(cl, ub);
+	ubus_msg_send(cl, ub, true);
 	return 0;
 }
 
@@ -111,7 +111,7 @@ static void ubusd_send_obj(struct ubus_client *cl, struct ubus_msg_buf *ub, stru
 	if (!ub)
 		return;
 
-	ubus_msg_send(cl, ub);
+	ubus_msg_send(cl, ub, true);
 }
 
 static int ubusd_handle_lookup(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
@@ -195,7 +195,7 @@ static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub, 
 
 	ub->hdr.type = UBUS_MSG_INVOKE;
 	ub->hdr.peer = cl->id.id;
-	ubus_msg_send(obj->client, ub);
+	ubus_msg_send(obj->client, ub, true);
 
 	return -1;
 }
@@ -221,7 +221,7 @@ static int ubusd_handle_response(struct ubus_client *cl, struct ubus_msg_buf *ub
 		goto error;
 
 	ub->hdr.peer = blob_get_int32(attr[UBUS_ATTR_OBJID]);
-	ubus_msg_send(cl, ub);
+	ubus_msg_send(cl, ub, true);
 	return -1;
 
 error:
@@ -260,7 +260,7 @@ void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)
 	ubus_msg_free(ub);
 
 	*retmsg_data = htonl(ret);
-	ubus_msg_send(cl, ubus_msg_ref(retmsg));
+	ubus_msg_send(cl, retmsg, false);
 }
 
 static void __init ubusd_proto_init(void)

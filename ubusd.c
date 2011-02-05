@@ -90,31 +90,56 @@ static int ubus_msg_writev(int fd, struct ubus_msg_buf *ub, int offset)
 	}
 }
 
+static void ubus_msg_enqueue(struct ubus_client *cl, struct ubus_msg_buf *ub)
+{
+	if (cl->tx_queue[cl->txq_tail])
+		return;
+
+	cl->tx_queue[cl->txq_tail] = ub;
+	cl->txq_tail = (cl->txq_tail + 1) % ARRAY_SIZE(cl->tx_queue);
+}
+
 /* takes the msgbuf reference */
-void ubus_msg_send(struct ubus_client *cl, struct ubus_msg_buf *ub)
+void ubus_msg_send(struct ubus_client *cl, struct ubus_msg_buf *ub, bool free)
 {
 	int written;
 
-	if (cl->buf_head)
-		goto queue;
+	if (!cl->tx_queue[cl->txq_cur]) {
+		written = ubus_msg_writev(cl->sock.fd, ub, 0);
+		if (written >= ub->len + sizeof(ub->hdr))
+			goto out;
 
-	written = ubus_msg_writev(cl->sock.fd, ub, 0);
-	if (written > 0 && written < ub->len + sizeof(ub->hdr)) {
-		cl->buf_head_ofs = written;
+		if (written < 0)
+			written = 0;
+
+		cl->txq_ofs = written;
 
 		/* get an event once we can write to the socket again */
 		uloop_fd_add(&cl->sock, ULOOP_READ | ULOOP_WRITE | ULOOP_EDGE_TRIGGER);
-		goto queue;
 	}
+	ubus_msg_enqueue(cl, ub);
+
+out:
+	if (free)
+		ubus_msg_free(ub);
+}
+
+static struct ubus_msg_buf *ubus_msg_head(struct ubus_client *cl)
+{
+	return cl->tx_queue[cl->txq_cur];
+}
+
+static void ubus_msg_dequeue(struct ubus_client *cl)
+{
+	struct ubus_msg_buf *ub = ubus_msg_head(cl);
+
+	if (!ub)
+		return;
 
 	ubus_msg_free(ub);
-	return;
-
-queue:
-	ub = ubus_msg_unshare(ub);
-	ub->next = NULL;
-	*cl->buf_tail = ub;
-	cl->buf_tail = &ub->next;
+	cl->txq_ofs = 0;
+	cl->tx_queue[cl->txq_cur] = NULL;
+	cl->txq_cur = (cl->txq_cur + 1) % ARRAY_SIZE(cl->tx_queue);
 }
 
 static void handle_client_disconnect(struct ubus_client *cl)
@@ -125,6 +150,9 @@ static void handle_client_disconnect(struct ubus_client *cl)
 		obj = list_first_entry(&cl->objects, struct ubus_object, list);
 		ubusd_free_object(obj);
 	}
+
+	while (ubus_msg_head(cl))
+		ubus_msg_dequeue(cl);
 
 	ubus_free_id(&clients, &cl->id);
 	uloop_fd_delete(&cl->sock);
@@ -138,11 +166,10 @@ static void client_cb(struct uloop_fd *sock, unsigned int events)
 	struct ubus_msg_buf *ub;
 
 	/* first try to tx more pending data */
-	while (cl->buf_head) {
-		struct ubus_msg_buf *ub = cl->buf_head;
+	while ((ub = ubus_msg_head(cl))) {
 		int written;
 
-		written = ubus_msg_writev(sock->fd, ub, cl->buf_head_ofs);
+		written = ubus_msg_writev(sock->fd, ub, cl->txq_ofs);
 		if (written < 0) {
 			switch(errno) {
 			case EINTR:
@@ -156,19 +183,16 @@ static void client_cb(struct uloop_fd *sock, unsigned int events)
 		if (written == 0)
 			break;
 
-		cl->buf_head_ofs += written;
-		if (cl->buf_head_ofs < ub->len + sizeof(ub->hdr))
+		cl->txq_ofs += written;
+		if (cl->txq_ofs < ub->len + sizeof(ub->hdr))
 			break;
 
-		cl->buf_head_ofs = 0;
-		cl->buf_head = ub->next;
-		if (!cl->buf_head)
-			cl->buf_tail = &cl->buf_head;
+		ubus_msg_dequeue(cl);
 	}
 
 	/* prevent further ULOOP_WRITE events if we don't have data
 	 * to send anymore */
-	if (!cl->buf_head && (events & ULOOP_WRITE))
+	if (!ubus_msg_head(cl) && (events & ULOOP_WRITE))
 		uloop_fd_add(sock, ULOOP_READ | ULOOP_EDGE_TRIGGER);
 
 retry:
@@ -220,7 +244,7 @@ retry:
 	}
 
 out:
-	if (!sock->eof || cl->buf_head)
+	if (!sock->eof || ubus_msg_head(cl))
 		return;
 
 disconnect:

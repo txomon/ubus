@@ -14,7 +14,6 @@
 #define UBUS_OBJ_HASH_BITS	4
 
 struct ubus_msg_buf {
-	struct ubus_msg_buf *next;
 	uint32_t refcount; /* ~0: uses external data buffer */
 	struct ubus_msghdr hdr;
 	struct blob_attr *data;
@@ -25,22 +24,17 @@ struct ubus_client {
 	struct ubus_id id;
 	struct uloop_fd sock;
 
+	struct list_head objects;
+
+	struct ubus_msg_buf *tx_queue[UBUSD_CLIENT_BACKLOG];
+	unsigned int txq_cur, txq_tail, txq_ofs;
+
+	struct ubus_msg_buf *pending_msg;
+	int pending_msg_offset;
 	struct {
 		struct ubus_msghdr hdr;
 		struct blob_attr data;
 	} hdrbuf;
-
-	struct list_head objects;
-
-	int pending_msg_offset;
-	struct ubus_msg_buf *pending_msg;
-
-	unsigned int buf_head_ofs;
-	struct ubus_msg_buf *buf_head;
-	struct ubus_msg_buf **buf_tail;
-
-	struct ubus_msg_buf *requests[UBUSD_CLIENT_BACKLOG];
-	unsigned int req_head, req_tail;
 };
 
 struct ubus_path {
@@ -49,7 +43,7 @@ struct ubus_path {
 };
 
 struct ubus_msg_buf *ubus_msg_new(void *data, int len, bool shared);
-void ubus_msg_send(struct ubus_client *cl, struct ubus_msg_buf *ub);
+void ubus_msg_send(struct ubus_client *cl, struct ubus_msg_buf *ub, bool free);
 struct ubus_msg_buf *ubus_msg_ref(struct ubus_msg_buf *ub);
 void ubus_msg_free(struct ubus_msg_buf *ub);
 
