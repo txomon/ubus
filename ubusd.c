@@ -180,8 +180,6 @@ static void client_cb(struct uloop_fd *sock, unsigned int events)
 			}
 			break;
 		}
-		if (written == 0)
-			break;
 
 		cl->txq_ofs += written;
 		if (cl->txq_ofs < ub->len + sizeof(ub->hdr))
