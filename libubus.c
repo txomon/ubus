@@ -307,7 +307,8 @@ static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hd
 	}
 
 	for (method = 0; method < obj->n_methods; method++)
-		if (!strcmp(obj->methods[method].name,
+		if (!obj->methods[method].name ||
+		    !strcmp(obj->methods[method].name,
 		            blob_data(attrbuf[UBUS_ATTR_METHOD])))
 			goto found;
 
@@ -643,13 +644,34 @@ int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
 	return __ubus_publish(ctx, obj);
 }
 
-int ubus_register_event_handler(struct ubus_context *ctx, struct ubus_object *obj,
+static int ubus_event_cb(struct ubus_context *ctx, struct ubus_object *obj,
+			 struct ubus_request_data *req,
+			 const char *method, struct blob_attr *msg)
+{
+	struct ubus_event_handler *ev;
+
+	ev = container_of(obj, struct ubus_event_handler, obj);
+	ev->cb(ctx, ev, method, msg);
+	return 0;
+}
+
+static const struct ubus_method event_method = {
+	.name = NULL,
+	.handler = ubus_event_cb,
+};
+
+int ubus_register_event_handler(struct ubus_context *ctx,
+				struct ubus_event_handler *ev,
 				const char *pattern)
 {
+	struct ubus_object *obj = &ev->obj;
 	struct blob_buf b2;
 	int ret;
 
 	if (!obj->id) {
+		obj->methods = &event_method;
+		obj->n_methods = 1;
+
 		if (!!obj->name ^ !!obj->type)
 			return UBUS_STATUS_INVALID_ARGUMENT;
 

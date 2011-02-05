@@ -20,10 +20,13 @@ static void receive_lookup(struct ubus_context *ctx, struct ubus_object_data *ob
 
 static void receive_data(struct ubus_request *req, int type, struct blob_attr *msg)
 {
+	char *str;
 	if (!msg)
 		return;
 
-	fprintf(stderr, "%s\n", blobmsg_format_json(msg, true));
+	str = blobmsg_format_json(msg, true);
+	fprintf(stderr, "%s\n", str);
+	free(str);
 }
 
 
@@ -39,11 +42,28 @@ static int usage(char *prog)
 	return 1;
 }
 
+static void receive_event(struct ubus_context *ctx, struct ubus_event_handler *ev,
+			  const char *type, struct blob_attr *msg)
+{
+	char *str;
+
+	if (msg)
+		str = blobmsg_format_json(msg, true);
+	else
+		str = "";
+
+	fprintf(stderr, "\"%s\":{ %s }\n", type, str);
+	free(str);
+}
+
 static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
 {
-	static struct ubus_object listener;
+	static struct ubus_event_handler listener;
 	const char *event;
 	int ret = 0;
+
+	memset(&listener, 0, sizeof(listener));
+	listener.cb = receive_event;
 
 	if (!argc) {
 		event = "*";

@@ -12,6 +12,7 @@ struct ubus_object;
 struct ubus_request;
 struct ubus_request_data;
 struct ubus_object_data;
+struct ubus_event_handler;
 
 typedef void (*ubus_lookup_handler_t)(struct ubus_context *ctx,
 				      struct ubus_object_data *obj,
@@ -19,6 +20,8 @@ typedef void (*ubus_lookup_handler_t)(struct ubus_context *ctx,
 typedef int (*ubus_handler_t)(struct ubus_context *ctx, struct ubus_object *obj,
 			      struct ubus_request_data *req,
 			      const char *method, struct blob_attr *msg);
+typedef void (*ubus_event_handler_t)(struct ubus_context *ctx, struct ubus_event_handler *ev,
+				     const char *type, struct blob_attr *msg);
 typedef void (*ubus_data_handler_t)(struct ubus_request *req,
 				    int type, struct blob_attr *msg);
 typedef void (*ubus_complete_handler_t)(struct ubus_request *req, int ret);
@@ -73,6 +76,12 @@ struct ubus_object {
 
 	const struct ubus_method *methods;
 	int n_methods;
+};
+
+struct ubus_event_handler {
+	struct ubus_object obj;
+
+	ubus_event_handler_t cb;
 };
 
 struct ubus_context {
@@ -173,5 +182,6 @@ int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
 		    struct blob_attr *msg);
 
 /* ----------- events ----------- */
-int ubus_register_event_handler(struct ubus_context *ctx, struct ubus_object *obj,
+int ubus_register_event_handler(struct ubus_context *ctx,
+				struct ubus_event_handler *ev,
 				const char *pattern);
