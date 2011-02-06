@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include "libubus.h"
 
 static struct ubus_context *ctx;
@@ -68,9 +70,26 @@ static struct ubus_object test_object2 = {
 
 int main(int argc, char **argv)
 {
-	int ret;
+	const char *progname, *ubus_socket = NULL;
+	int ret = 0;
+	int ch;
 
-	ctx = ubus_connect(NULL);
+	progname = argv[0];
+
+	while ((ch = getopt(argc, argv, "s:")) != -1) {
+		switch (ch) {
+		case 's':
+			ubus_socket = optarg;
+			break;
+		default:
+			break;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	ctx = ubus_connect(ubus_socket);
 	if (!ctx) {
 		fprintf(stderr, "Failed to connect to ubus\n");
 		return -1;

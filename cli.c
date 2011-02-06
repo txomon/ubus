@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include <libubox/blobmsg_json.h>
 #include "libubus.h"
 
@@ -55,18 +57,6 @@ static void receive_data(struct ubus_request *req, int type, struct blob_attr *m
 }
 
 
-static int usage(char *prog)
-{
-	fprintf(stderr,
-		"Usage: %s <command> [arguments...]\n"
-		"Commands:\n"
-		" - list [<path>]			List objects\n"
-		" - call <path> <method> [<message>]	Call an object method\n"
-		" - listen [<path>...]			Listen for events\n"
-		"\n", prog);
-	return 1;
-}
-
 static void receive_event(struct ubus_context *ctx, struct ubus_event_handler *ev,
 			  const char *type, struct blob_attr *msg)
 {
@@ -115,48 +105,83 @@ static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
 	return 0;
 }
 
+static int usage(const char *prog)
+{
+	fprintf(stderr,
+		"Usage: %s [<options>] <command> [arguments...]\n"
+		"Options:\n"
+		" -s <socket>:		Set the unix domain socket to connect to\n"
+		"\n"
+		"Commands:\n"
+		" - list [<path>]			List objects\n"
+		" - call <path> <method> [<message>]	Call an object method\n"
+		" - listen [<path>...]			Listen for events\n"
+		"\n", prog);
+	return 1;
+}
+
 int main(int argc, char **argv)
 {
+	const char *progname, *ubus_socket = NULL;
 	static struct ubus_context *ctx;
 	char *cmd;
 	int ret = 0;
+	int ch;
 
-	ctx = ubus_connect(NULL);
+	progname = argv[0];
+
+	while ((ch = getopt(argc, argv, "s:")) != -1) {
+		switch (ch) {
+		case 's':
+			ubus_socket = optarg;
+			break;
+		default:
+			return usage(progname);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	ctx = ubus_connect(ubus_socket);
 	if (!ctx) {
 		fprintf(stderr, "Failed to connect to ubus\n");
 		return -1;
 	}
 
-	cmd = argv[1];
-	if (argc < 2)
-		return usage(argv[0]);
+	cmd = argv[0];
+	if (argc < 1)
+		return usage(progname);
+
+	argv++;
+	argc--;
 
 	if (!strcmp(cmd, "list")) {
 		const char *path = NULL;
 
-		if (argc == 3)
-			path = argv[2];
+		if (argc == 1)
+			path = argv[0];
 
 		ret = ubus_lookup(ctx, path, receive_lookup, NULL);
 	} else if (!strcmp(cmd, "call")) {
 		uint32_t id;
 
-		if (argc < 4 || argc > 5)
-			return usage(argv[0]);
+		if (argc < 2 || argc > 3)
+			return usage(progname);
 
 		blob_buf_init(&b, 0);
-		if (argc == 5 && !blobmsg_add_json_from_string(&b, argv[4])) {
+		if (argc == 3 && !blobmsg_add_json_from_string(&b, argv[2])) {
 			fprintf(stderr, "Failed to parse message data\n");
 			goto out;
 		}
 
-		ret = ubus_lookup_id(ctx, argv[2], &id);
+		ret = ubus_lookup_id(ctx, argv[0], &id);
 		if (!ret)
-			ret = ubus_invoke(ctx, id, argv[3], b.head, receive_data, NULL);
+			ret = ubus_invoke(ctx, id, argv[1], b.head, receive_data, NULL);
 	} else if (!strcmp(cmd, "listen")) {
-		ret = ubus_cli_listen(ctx, argc - 2, argv + 2);
+		ret = ubus_cli_listen(ctx, argc, argv);
 	} else {
-		return usage(argv[0]);
+		return usage(progname);
 	}
 
 	if (ret)
