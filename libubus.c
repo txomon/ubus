@@ -733,7 +733,7 @@ int ubus_register_event_handler(struct ubus_context *ctx,
 }
 
 
-void ubus_default_connection_lost(struct ubus_context *ctx)
+static void ubus_default_connection_lost(struct ubus_context *ctx)
 {
 	if (ctx->sock.registered)
 		uloop_end();
