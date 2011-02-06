@@ -188,3 +188,9 @@ int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
 int ubus_register_event_handler(struct ubus_context *ctx,
 				struct ubus_event_handler *ev,
 				const char *pattern);
+
+static inline int ubus_unregister_event_handler(struct ubus_context *ctx,
+						struct ubus_event_handler *ev)
+{
+    return ubus_remove_object(ctx, &ev->obj);
+}
