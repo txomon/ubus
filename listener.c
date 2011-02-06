@@ -16,15 +16,33 @@ static const struct ubus_signature test_object_sig[] = {
 static struct ubus_object_type test_object_type =
 	UBUS_OBJECT_TYPE("test", test_object_sig);
 
+enum {
+	HELLO_ID,
+	HELLO_MSG,
+	HELLO_LAST
+};
+
+static const struct blobmsg_policy hello_policy[] = {
+	[HELLO_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
+	[HELLO_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING },
+};
+
 static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
 		      struct ubus_request_data *req, const char *method,
 		      struct blob_attr *msg)
 {
+	struct blob_attr *tb[HELLO_LAST];
+	char *msgstr = "(unknown)";
 	char *strbuf;
 
+	blobmsg_parse(hello_policy, ARRAY_SIZE(hello_policy), tb, blob_data(msg), blob_len(msg));
+
+	if (tb[HELLO_MSG])
+		msgstr = blobmsg_data(tb[HELLO_MSG]);
+
 	blob_buf_init(&b, 0);
-	strbuf = blobmsg_alloc_string_buffer(&b, "message", 64 + strlen(obj->name));
-	sprintf(strbuf, "%s: Hello, world\n", obj->name);
+	strbuf = blobmsg_alloc_string_buffer(&b, "message", 64 + strlen(obj->name) + strlen(msgstr));
+	sprintf(strbuf, "%s: Hello, world: %s", obj->name, msgstr);
 	blobmsg_add_string_buffer(&b);
 	ubus_send_reply(ctx, req, b.head);
 	return 0;
