@@ -5,7 +5,7 @@
 
 static struct blob_buf b;
 
-static const char *attr_types[] = {
+static const char * const attr_types[] = {
 	[BLOBMSG_TYPE_INT32] = "\"Integer\"",
 	[BLOBMSG_TYPE_STRING] = "\"String\"",
 };
