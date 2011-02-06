@@ -646,6 +646,43 @@ int ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj)
 	return __ubus_add_object(ctx, obj);
 }
 
+static void ubus_remove_object_cb(struct ubus_request *req, int type, struct blob_attr *msg)
+{
+	struct ubus_object *obj = req->priv;
+
+	ubus_parse_msg(msg);
+
+	if (!attrbuf[UBUS_ATTR_OBJID])
+		return;
+
+	obj->id = 0;
+
+	if (attrbuf[UBUS_ATTR_OBJTYPE] && obj->type)
+		obj->type->id = 0;
+
+	avl_delete(&req->ctx->objects, &obj->avl);
+}
+
+int ubus_remove_object(struct ubus_context *ctx, struct ubus_object *obj)
+{
+	struct ubus_request req;
+	int ret;
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id);
+	ubus_start_request(ctx, &req, b.head, UBUS_MSG_REMOVE_OBJECT, 0);
+	req.raw_data_cb = ubus_remove_object_cb;
+	req.priv = obj;
+	ret = ubus_complete_request(ctx, &req);
+	if (ret)
+		return ret;
+
+	if (obj->id)
+		return UBUS_STATUS_NO_DATA;
+
+	return 0;
+}
+
 static int ubus_event_cb(struct ubus_context *ctx, struct ubus_object *obj,
 			 struct ubus_request_data *req,
 			 const char *method, struct blob_attr *msg)
