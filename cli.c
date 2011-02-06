@@ -3,6 +3,28 @@
 
 static struct blob_buf b;
 
+static const char *attr_types[] = {
+	[BLOBMSG_TYPE_INT32] = "\"Integer\"",
+	[BLOBMSG_TYPE_STRING] = "\"String\"",
+};
+
+static const char *format_type(void *priv, struct blob_attr *attr)
+{
+	const char *type = NULL;
+	int typeid;
+
+	if (blob_id(attr) != BLOBMSG_TYPE_INT32)
+		return NULL;
+
+	typeid = blobmsg_get_u32(attr);
+	if (typeid < ARRAY_SIZE(attr_types))
+		type = attr_types[typeid];
+	if (!type)
+		type = "\"(unknown)\"";
+
+	return type;
+}
+
 static void receive_lookup(struct ubus_context *ctx, struct ubus_object_data *obj, void *priv)
 {
 	struct blob_attr *cur;
@@ -15,7 +37,7 @@ static void receive_lookup(struct ubus_context *ctx, struct ubus_object_data *ob
 		return;
 
 	blob_for_each_attr(cur, obj->signature, rem) {
-		s = blobmsg_format_json(cur, false);
+		s = blobmsg_format_json_with_cb(cur, false, format_type, NULL);
 		fprintf(stderr, "\t%s\n", s);
 		free(s);
 	}
