@@ -352,6 +352,7 @@ int main(int argc, char **argv)
 	uloop_fd_add(&server_fd, ULOOP_READ | ULOOP_EDGE_TRIGGER);
 
 	uloop_run();
+	unlink(ubus_socket);
 
 out:
 	uloop_done();
