@@ -6,7 +6,7 @@ CMakeFiles
 *.so
 *.dylib
 ubus.sock
-listener
+ubus-example
 ubusd
 ubus
 install_manifest.txt
