@@ -9,7 +9,6 @@
 #include "ubusd_obj.h"
 #include "ubusmsg.h"
 
-#define UBUS_UNIX_SOCKET "./ubus.sock"
 #define UBUSD_CLIENT_BACKLOG	32
 #define UBUS_OBJ_HASH_BITS	4
 
