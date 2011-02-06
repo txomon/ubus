@@ -311,9 +311,20 @@ static struct uloop_fd server_fd = {
 	.cb = server_cb,
 };
 
+static int usage(const char *progname)
+{
+	fprintf(stderr, "Usage: %s [<options>]\n"
+		"Options: \n"
+		"  -s <socket>:		Set the unix domain socket to listen on\n"
+		"\n", progname);
+	return 1;
+}
+
 int main(int argc, char **argv)
 {
+	const char *ubus_socket = UBUS_UNIX_SOCKET;
 	int ret = 0;
+	int ch;
 
 	signal(SIGPIPE, SIG_IGN);
 
@@ -321,8 +332,18 @@ int main(int argc, char **argv)
 
 	uloop_init();
 
-	unlink(UBUS_UNIX_SOCKET);
-	server_fd.fd = usock(USOCK_UNIX | USOCK_SERVER | USOCK_NONBLOCK, UBUS_UNIX_SOCKET, NULL);
+	while ((ch = getopt(argc, argv, "s:")) != -1) {
+		switch (ch) {
+		case 's':
+			ubus_socket = optarg;
+			break;
+		default:
+			return usage(argv[0]);
+		}
+	}
+
+	unlink(ubus_socket);
+	server_fd.fd = usock(USOCK_UNIX | USOCK_SERVER | USOCK_NONBLOCK, ubus_socket, NULL);
 	if (server_fd.fd < 0) {
 		perror("usock");
 		ret = -1;
