@@ -124,6 +124,8 @@ static bool recv_retry(int fd, struct iovec *iov, bool wait)
 		bytes = read(fd, iov->iov_base, iov->iov_len);
 		if (bytes < 0) {
 			bytes = 0;
+			if (uloop_cancelled)
+				return false;
 			if (errno == EINTR)
 				continue;
 

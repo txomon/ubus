@@ -98,6 +98,7 @@ int main(int argc, char **argv)
 	uloop_init();
 	ubus_add_uloop(ctx);
 	uloop_run();
+	uloop_done();
 
 	ubus_free(ctx);
 	return 0;
