@@ -38,8 +38,8 @@ enum ubus_msg_type {
 	/* invoke a method on a single object */
 	UBUS_MSG_INVOKE,
 
-	/* publish an object */
-	UBUS_MSG_PUBLISH,
+	UBUS_MSG_ADD_OBJECT,
+	UBUS_MSG_REMOVE_OBJECT,
 
 	/* must be last */
 	__UBUS_MSG_LAST,

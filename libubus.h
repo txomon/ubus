@@ -175,7 +175,7 @@ void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *metho
                        struct blob_attr *msg, struct ubus_request *req);
 
 /* make an object visible to remote connections */
-int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj);
+int ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj);
 
 /* send a reply to an incoming object method call */
 int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,

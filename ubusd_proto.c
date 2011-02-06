@@ -69,7 +69,7 @@ static int ubusd_send_pong(struct ubus_client *cl, struct ubus_msg_buf *ub, stru
 	return 0;
 }
 
-static int ubusd_handle_publish(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
+static int ubusd_handle_add_object(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	struct ubus_object *obj;
 
@@ -231,7 +231,7 @@ error:
 
 static const ubus_cmd_cb handlers[__UBUS_MSG_LAST] = {
 	[UBUS_MSG_PING] = ubusd_send_pong,
-	[UBUS_MSG_PUBLISH] = ubusd_handle_publish,
+	[UBUS_MSG_ADD_OBJECT] = ubusd_handle_add_object,
 	[UBUS_MSG_LOOKUP] = ubusd_handle_lookup,
 	[UBUS_MSG_INVOKE] = ubusd_handle_invoke,
 	[UBUS_MSG_STATUS] = ubusd_handle_response,

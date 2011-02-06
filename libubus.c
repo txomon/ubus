@@ -533,7 +533,7 @@ int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,
 	return ubus_complete_request(ctx, &req);
 }
 
-static void ubus_publish_cb(struct ubus_request *req, int type, struct blob_attr *msg)
+static void ubus_add_object_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 {
 	struct ubus_object *obj = req->priv;
 
@@ -609,7 +609,7 @@ static bool ubus_push_object_type(struct ubus_object_type *type)
 	return true;
 }
 
-static int __ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
+static int __ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj)
 {
 	struct ubus_request req;
 	int ret;
@@ -625,8 +625,8 @@ static int __ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
 			return UBUS_STATUS_INVALID_ARGUMENT;
 	}
 
-	ubus_start_request(ctx, &req, b.head, UBUS_MSG_PUBLISH, 0);
-	req.raw_data_cb = ubus_publish_cb;
+	ubus_start_request(ctx, &req, b.head, UBUS_MSG_ADD_OBJECT, 0);
+	req.raw_data_cb = ubus_add_object_cb;
 	req.priv = obj;
 	ret = ubus_complete_request(ctx, &req);
 	if (ret)
@@ -638,12 +638,12 @@ static int __ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
 	return 0;
 }
 
-int ubus_publish(struct ubus_context *ctx, struct ubus_object *obj)
+int ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj)
 {
 	if (!obj->name || !obj->type)
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	return __ubus_publish(ctx, obj);
+	return __ubus_add_object(ctx, obj);
 }
 
 static int ubus_event_cb(struct ubus_context *ctx, struct ubus_object *obj,
@@ -677,7 +677,7 @@ int ubus_register_event_handler(struct ubus_context *ctx,
 		if (!!obj->name ^ !!obj->type)
 			return UBUS_STATUS_INVALID_ARGUMENT;
 
-		ret = __ubus_publish(ctx, obj);
+		ret = __ubus_add_object(ctx, obj);
 		if (ret)
 			return ret;
 	}
