@@ -182,7 +182,7 @@ static bool ubus_get_status(struct ubus_msghdr *hdr, int *ret)
 	if (!attrbuf[UBUS_ATTR_STATUS])
 		return false;
 
-	*ret = blob_get_int32(attrbuf[UBUS_ATTR_STATUS]);
+	*ret = blob_get_u32(attrbuf[UBUS_ATTR_STATUS]);
 	return true;
 }
 
@@ -295,7 +295,7 @@ static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hd
 	if (!attrbuf[UBUS_ATTR_OBJID])
 		return;
 
-	objid = blob_get_int32(attrbuf[UBUS_ATTR_OBJID]);
+	objid = blob_get_u32(attrbuf[UBUS_ATTR_OBJID]);
 
 	if (!attrbuf[UBUS_ATTR_METHOD]) {
 		ret = UBUS_STATUS_INVALID_ARGUMENT;
@@ -446,9 +446,9 @@ static void ubus_lookup_cb(struct ubus_request *ureq, int type, struct blob_attr
 		return;
 
 	memset(&obj, 0, sizeof(obj));
-	obj.id = blob_get_int32(attr[UBUS_ATTR_OBJID]);
+	obj.id = blob_get_u32(attr[UBUS_ATTR_OBJID]);
 	obj.path = blob_data(attr[UBUS_ATTR_OBJPATH]);
-	obj.type_id = blob_get_int32(attr[UBUS_ATTR_OBJTYPE]);
+	obj.type_id = blob_get_u32(attr[UBUS_ATTR_OBJTYPE]);
 	obj.signature = attr[UBUS_ATTR_SIGNATURE];
 	req->cb(ureq->ctx, &obj, ureq->priv);
 }
@@ -478,7 +478,7 @@ static void ubus_lookup_id_cb(struct ubus_request *req, int type, struct blob_at
 	if (!attr[UBUS_ATTR_OBJID])
 		return;
 
-	*id = blob_get_int32(attr[UBUS_ATTR_OBJID]);
+	*id = blob_get_u32(attr[UBUS_ATTR_OBJID]);
 }
 
 int ubus_lookup_id(struct ubus_context *ctx, const char *path, uint32_t *id)
@@ -542,10 +542,10 @@ static void ubus_add_object_cb(struct ubus_request *req, int type, struct blob_a
 	if (!attrbuf[UBUS_ATTR_OBJID])
 		return;
 
-	obj->id = blob_get_int32(attrbuf[UBUS_ATTR_OBJID]);
+	obj->id = blob_get_u32(attrbuf[UBUS_ATTR_OBJID]);
 
 	if (attrbuf[UBUS_ATTR_OBJTYPE])
-		obj->type->id = blob_get_int32(attrbuf[UBUS_ATTR_OBJTYPE]);
+		obj->type->id = blob_get_u32(attrbuf[UBUS_ATTR_OBJTYPE]);
 
 	obj->avl.key = &obj->id;
 	avl_insert(&req->ctx->objects, &obj->avl);

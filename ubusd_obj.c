@@ -115,7 +115,7 @@ struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr
 	struct ubus_object_type *type = NULL;
 
 	if (attr[UBUS_ATTR_OBJTYPE])
-		type = ubus_get_obj_type(blob_get_int32(attr[UBUS_ATTR_OBJTYPE]));
+		type = ubus_get_obj_type(blob_get_u32(attr[UBUS_ATTR_OBJTYPE]));
 	else if (attr[UBUS_ATTR_SIGNATURE])
 		type = ubus_create_obj_type(attr[UBUS_ATTR_SIGNATURE]);
 

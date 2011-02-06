@@ -169,7 +169,7 @@ static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub, 
 	if (!attr[UBUS_ATTR_METHOD] || !attr[UBUS_ATTR_OBJID])
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	id = ubus_find_id(&objects, blob_get_int32(attr[UBUS_ATTR_OBJID]));
+	id = ubus_find_id(&objects, blob_get_u32(attr[UBUS_ATTR_OBJID]));
 	if (!id)
 		return UBUS_STATUS_NOT_FOUND;
 
@@ -209,7 +209,7 @@ static int ubusd_handle_response(struct ubus_client *cl, struct ubus_msg_buf *ub
 	    (ub->hdr.type == UBUS_MSG_DATA && !attr[UBUS_ATTR_DATA]))
 		goto error;
 
-	obj = ubusd_find_object(blob_get_int32(attr[UBUS_ATTR_OBJID]));
+	obj = ubusd_find_object(blob_get_u32(attr[UBUS_ATTR_OBJID]));
 	if (!obj)
 		goto error;
 
@@ -220,7 +220,7 @@ static int ubusd_handle_response(struct ubus_client *cl, struct ubus_msg_buf *ub
 	if (!cl)
 		goto error;
 
-	ub->hdr.peer = blob_get_int32(attr[UBUS_ATTR_OBJID]);
+	ub->hdr.peer = blob_get_u32(attr[UBUS_ATTR_OBJID]);
 	ubus_msg_send(cl, ub, true);
 	return -1;
 
