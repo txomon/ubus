@@ -69,6 +69,37 @@ static int ubusd_send_pong(struct ubus_client *cl, struct ubus_msg_buf *ub, stru
 	return 0;
 }
 
+static int ubusd_handle_remove_object(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
+{
+	struct ubus_object *obj;
+
+	if (!attr[UBUS_ATTR_OBJID])
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	obj = ubusd_find_object(blob_get_u32(attr[UBUS_ATTR_OBJID]));
+	if (!obj)
+		return UBUS_STATUS_NOT_FOUND;
+
+	if (obj->client != cl)
+		return UBUS_STATUS_PERMISSION_DENIED;
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id.id);
+
+	/* check if we're removing the object type as well */
+	if (obj->type && obj->type->refcount == 1)
+		blob_put_int32(&b, UBUS_ATTR_OBJTYPE, obj->type->id.id);
+
+	ubusd_free_object(obj);
+
+	ub = ubus_reply_from_blob(ub, true);
+	if (!ub)
+		return UBUS_STATUS_NO_DATA;
+
+	ubus_msg_send(cl, ub, true);
+	return 0;
+}
+
 static int ubusd_handle_add_object(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	struct ubus_object *obj;
@@ -232,6 +263,7 @@ error:
 static const ubus_cmd_cb handlers[__UBUS_MSG_LAST] = {
 	[UBUS_MSG_PING] = ubusd_send_pong,
 	[UBUS_MSG_ADD_OBJECT] = ubusd_handle_add_object,
+	[UBUS_MSG_REMOVE_OBJECT] = ubusd_handle_remove_object,
 	[UBUS_MSG_LOOKUP] = ubusd_handle_lookup,
 	[UBUS_MSG_INVOKE] = ubusd_handle_invoke,
 	[UBUS_MSG_STATUS] = ubusd_handle_response,
