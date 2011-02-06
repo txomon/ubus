@@ -5,7 +5,6 @@ CMakeFiles
 *.a
 *.so
 *.dylib
-ubus.sock
 ubus-example
 ubusd
 ubus
