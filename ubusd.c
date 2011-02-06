@@ -95,7 +95,7 @@ static void ubus_msg_enqueue(struct ubus_client *cl, struct ubus_msg_buf *ub)
 	if (cl->tx_queue[cl->txq_tail])
 		return;
 
-	cl->tx_queue[cl->txq_tail] = ub;
+	cl->tx_queue[cl->txq_tail] = ubus_msg_ref(ub);
 	cl->txq_tail = (cl->txq_tail + 1) % ARRAY_SIZE(cl->tx_queue);
 }
 
