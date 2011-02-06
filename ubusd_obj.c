@@ -98,6 +98,7 @@ struct ubus_object *ubusd_create_object_internal(struct ubus_object_type *type, 
 
 	obj->type = type;
 	INIT_LIST_HEAD(&obj->list);
+	INIT_LIST_HEAD(&obj->events);
 	if (type)
 		type->refcount++;
 
@@ -142,7 +143,6 @@ struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr
 
 	obj->client = cl;
 	list_add(&obj->list, &cl->objects);
-	INIT_LIST_HEAD(&obj->events);
 
 	return obj;
 
