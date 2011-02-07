@@ -164,6 +164,12 @@ int ubus_lookup(struct ubus_context *ctx, const char *path,
 
 int ubus_lookup_id(struct ubus_context *ctx, const char *path, uint32_t *id);
 
+/* make an object visible to remote connections */
+int ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj);
+
+/* remove the object from the ubus connection */
+int ubus_remove_object(struct ubus_context *ctx, struct ubus_object *obj);
+
 /* ----------- rpc ----------- */
 
 /* invoke a method on a specific object */
@@ -174,17 +180,12 @@ int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,
 void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method,
                        struct blob_attr *msg, struct ubus_request *req);
 
-/* make an object visible to remote connections */
-int ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj);
-
-/* remove the object from the ubus connection */
-int ubus_remove_object(struct ubus_context *ctx, struct ubus_object *obj);
-
 /* send a reply to an incoming object method call */
 int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
 		    struct blob_attr *msg);
 
 /* ----------- events ----------- */
+
 int ubus_send_event(struct ubus_context *ctx, const char *id,
 		    struct blob_attr *data);
 
