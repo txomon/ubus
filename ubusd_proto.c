@@ -41,7 +41,7 @@ static struct ubus_msg_buf *ubus_reply_from_blob(struct ubus_msg_buf *ub, bool s
 {
 	struct ubus_msg_buf *new;
 
-	new = ubus_msg_new(b.head, blob_raw_len(b.head), shared);
+	new = ubus_msg_from_blob(shared);
 	if (!new)
 		return NULL;
 
