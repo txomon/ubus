@@ -17,6 +17,7 @@ struct event_source {
 	union {
 		struct {
 			struct avl_node avl;
+			bool partial;
 		} pattern;
 		struct {
 			struct list_head list;
@@ -86,8 +87,10 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 	struct event_source *ev;
 	struct ubus_object *obj;
 	struct blob_attr *attr[EVREG_LAST];
-	const char *pattern;
+	char *pattern;
 	uint32_t id;
+	bool partial = false;
+	int len;
 
 	blobmsg_parse(evr_policy, EVREG_LAST, attr, blob_data(msg), blob_len(msg));
 	if (!attr[EVREG_OBJECT])
@@ -108,7 +111,16 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 		return ubusd_alloc_catchall(obj);
 
 	pattern = blobmsg_data(attr[EVREG_PATTERN]);
-	ev = ubusd_alloc_event_source(obj, EVS_PATTERN, strlen(pattern) + 1);
+
+	len = strlen(pattern);
+	if (pattern[len - 1] == '*') {
+		partial = true;
+		pattern[len - 1] = 0;
+		len--;
+	}
+
+	ev = ubusd_alloc_event_source(obj, EVS_PATTERN, len + 1);
+	ev->pattern.partial = partial;
 	ev->pattern.avl.key = (void *) (ev + 1);
 	strcpy(ev->pattern.avl.key, pattern);
 	avl_insert(&patterns, &ev->pattern.avl);
