@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include "ubusd.h"
 
 static struct avl_tree patterns;
