@@ -13,6 +13,7 @@
 #define UBUS_OBJ_HASH_BITS	4
 
 extern struct blob_buf b;
+extern struct avl_tree clients;
 
 struct ubus_msg_buf {
 	uint32_t refcount; /* ~0: uses external data buffer */
@@ -47,8 +48,6 @@ struct ubus_msg_buf *ubus_msg_new(void *data, int len, bool shared);
 void ubus_msg_send(struct ubus_client *cl, struct ubus_msg_buf *ub, bool free);
 struct ubus_msg_buf *ubus_msg_ref(struct ubus_msg_buf *ub);
 void ubus_msg_free(struct ubus_msg_buf *ub);
-
-struct ubus_client *ubusd_get_client_by_id(uint32_t id);
 
 void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub);
 bool ubusd_send_hello(struct ubus_client *cl);

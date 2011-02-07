@@ -231,6 +231,17 @@ static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub, 
 	return -1;
 }
 
+static struct ubus_client *ubusd_get_client_by_id(uint32_t id)
+{
+	struct ubus_id *clid;
+
+	clid = ubus_find_id(&clients, id);
+	if (!clid)
+		return NULL;
+
+	return container_of(clid, struct ubus_client, id);
+}
+
 static int ubusd_handle_response(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	struct ubus_object *obj;

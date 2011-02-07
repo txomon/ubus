@@ -12,7 +12,7 @@
 
 #include "ubusd.h"
 
-static struct avl_tree clients;
+struct avl_tree clients;
 
 static struct ubus_msg_buf *ubus_msg_unshare(struct ubus_msg_buf *ub)
 {
@@ -247,17 +247,6 @@ out:
 
 disconnect:
 	handle_client_disconnect(cl);
-}
-
-struct ubus_client *ubusd_get_client_by_id(uint32_t id)
-{
-	struct ubus_id *clid;
-
-	clid = ubus_find_id(&clients, id);
-	if (!clid)
-		return NULL;
-
-	return container_of(clid, struct ubus_client, id);
 }
 
 static bool get_next_connection(int fd)
