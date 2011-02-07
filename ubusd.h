@@ -46,7 +46,6 @@ struct ubus_path {
 
 struct ubus_msg_buf *ubus_msg_new(void *data, int len, bool shared);
 void ubus_msg_send(struct ubus_client *cl, struct ubus_msg_buf *ub, bool free);
-struct ubus_msg_buf *ubus_msg_ref(struct ubus_msg_buf *ub);
 void ubus_msg_free(struct ubus_msg_buf *ub);
 
 void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub);

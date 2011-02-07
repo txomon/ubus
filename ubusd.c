@@ -26,7 +26,7 @@ static struct ubus_msg_buf *ubus_msg_unshare(struct ubus_msg_buf *ub)
 	return ub;
 }
 
-struct ubus_msg_buf *ubus_msg_ref(struct ubus_msg_buf *ub)
+static struct ubus_msg_buf *ubus_msg_ref(struct ubus_msg_buf *ub)
 {
 	if (ub->refcount == ~0)
 		return ubus_msg_unshare(ub);
