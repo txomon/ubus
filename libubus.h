@@ -145,6 +145,12 @@ static inline void ubus_add_uloop(struct ubus_context *ctx)
 	uloop_fd_add(&ctx->sock, ULOOP_EDGE_TRIGGER | ULOOP_BLOCKING | ULOOP_READ);
 }
 
+/* call this for read events on ctx->sock.fd when not using uloop */
+static inline void ubus_handle_event(struct ubus_context *ctx)
+{
+	ctx->sock.cb(&ctx->sock, ULOOP_READ);
+}
+
 /* ----------- raw request handling ----------- */
 
 /* wait for a request to complete and return its status */
