@@ -4,6 +4,7 @@ static struct avl_tree patterns;
 static LIST_HEAD(catch_all);
 static struct ubus_object *event_obj;
 static int event_seq = 0;
+static int obj_event_seq = 0;
 
 enum evs_type {
 	EVS_PATTERN,
@@ -139,10 +140,21 @@ static struct blobmsg_policy ev_policy[] = {
 	[EVMSG_DATA] = { .name = "data", .type = BLOBMSG_TYPE_TABLE },
 };
 
-static void ubusd_send_event_msg(struct ubus_msg_buf **ub, struct ubus_object *obj,
-				 const char *id, struct blob_attr *msg)
+static void ubusd_send_event_msg(struct ubus_msg_buf **ub, struct ubus_client *cl,
+				 struct ubus_object *obj, const char *id,
+				 struct blob_attr *msg)
 {
 	uint32_t *objid_ptr;
+
+	/* do not loop back events */
+	if (obj->client == cl)
+	    return;
+
+	/* do not send duplicate events */
+	if (obj->event_seen == obj_event_seq)
+		return;
+
+	obj->event_seen = obj_event_seq;
 
 	if (*ub) {
 		objid_ptr = blob_data(blob_data((*ub)->data));
@@ -162,24 +174,61 @@ static void ubusd_send_event_msg(struct ubus_msg_buf **ub, struct ubus_object *o
 	ubus_msg_send(obj->client, *ub, false);
 }
 
+bool strmatch_len(const char *s1, const char *s2, int *len)
+{
+	for (*len = 0; s1[*len] == s2[*len]; (*len)++)
+		if (!s1[*len])
+			return true;
+
+	return false;
+}
+
 static int ubusd_send_event(struct ubus_client *cl, struct blob_attr *msg)
 {
 	struct ubus_msg_buf *ub = NULL;
 	struct event_source *ev;
 	struct blob_attr *attr[EVMSG_LAST];
 	const char *id;
+	int match_len = 0;
+	void *data;
 
 	blobmsg_parse(ev_policy, EVMSG_LAST, attr, blob_data(msg), blob_len(msg));
 	if (!attr[EVMSG_ID] || !attr[EVMSG_DATA])
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
 	id = blobmsg_data(attr[EVMSG_ID]);
-	list_for_each_entry(ev, &catch_all, catchall.list) {
-		/* do not loop back events */
-		if (ev->obj->client == cl)
-			continue;
+	data = attr[EVMSG_DATA];
 
-		ubusd_send_event_msg(&ub, ev->obj, id, attr[EVMSG_DATA]);
+	list_for_each_entry(ev, &catch_all, catchall.list)
+		ubusd_send_event_msg(&ub, cl, ev->obj, id, data);
+
+	obj_event_seq++;
+
+	/*
+	 * Since this tree is sorted alphabetically, we can only expect to find
+	 * matching entries as long as the number of matching characters
+	 * between the pattern string and our string is monotonically increasing.
+	 */
+	avl_for_each_element(&patterns, ev, pattern.avl) {
+		const char *key = ev->pattern.avl.key;
+		int cur_match_len;
+		bool full_match;
+
+		full_match = strmatch_len(id, key, &cur_match_len);
+		if (cur_match_len < match_len)
+			break;
+
+		match_len = cur_match_len;
+
+		if (!full_match) {
+			if (!ev->pattern.partial)
+				continue;
+
+			if (match_len != strlen(key))
+				continue;
+		}
+
+		ubusd_send_event_msg(&ub, cl, ev->obj, id, data);
 	}
 
 	if (ub)

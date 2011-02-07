@@ -33,6 +33,8 @@ struct ubus_object {
 
 	struct ubus_client *client;
 	int (*recv_msg)(struct ubus_client *client, const char *method, struct blob_attr *msg);
+
+	int event_seen;
 };
 
 struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr **attr);
