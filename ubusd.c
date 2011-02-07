@@ -12,8 +12,6 @@
 
 #include "ubusd.h"
 
-struct avl_tree clients;
-
 static struct ubus_msg_buf *ubus_msg_unshare(struct ubus_msg_buf *ub)
 {
 	ub = realloc(ub, sizeof(*ub) + ub->len);
@@ -144,17 +142,10 @@ static void ubus_msg_dequeue(struct ubus_client *cl)
 
 static void handle_client_disconnect(struct ubus_client *cl)
 {
-	struct ubus_object *obj;
-
-	while (!list_empty(&cl->objects)) {
-		obj = list_first_entry(&cl->objects, struct ubus_object, list);
-		ubusd_free_object(obj);
-	}
-
 	while (ubus_msg_head(cl))
 		ubus_msg_dequeue(cl);
 
-	ubus_free_id(&clients, &cl->id);
+	ubusd_proto_free_client(cl);
 	uloop_fd_delete(&cl->sock);
 	close(cl->sock.fd);
 	free(cl);
@@ -237,7 +228,7 @@ retry:
 		/* accept message */
 		cl->pending_msg_offset = 0;
 		cl->pending_msg = NULL;
-		ubusd_receive_message(cl, ub);
+		ubusd_proto_receive_message(cl, ub);
 		goto retry;
 	}
 
@@ -265,25 +256,12 @@ static bool get_next_connection(int fd)
 		}
 	}
 
-	cl = calloc(1, sizeof(*cl));
-	cl->sock.fd = client_fd;
+	cl = ubusd_proto_new_client(client_fd, client_cb);
+	if (cl)
+		uloop_fd_add(&cl->sock, ULOOP_READ | ULOOP_EDGE_TRIGGER);
+	else
+		close(client_fd);
 
-	INIT_LIST_HEAD(&cl->objects);
-	if (!ubus_alloc_id(&clients, &cl->id, 0))
-		goto error;
-
-	cl->sock.cb = client_cb;
-	uloop_fd_add(&cl->sock, ULOOP_READ | ULOOP_EDGE_TRIGGER);
-	if (!ubusd_send_hello(cl))
-		goto error_free;
-
-	return true;
-
-error_free:
-	ubus_free_id(&clients, &cl->id);
-error:
-	close(cl->sock.fd);
-	free(cl);
 	return true;
 }
 
@@ -316,8 +294,6 @@ int main(int argc, char **argv)
 	int ch;
 
 	signal(SIGPIPE, SIG_IGN);
-
-	ubus_init_id_tree(&clients);
 
 	uloop_init();
 

@@ -4,6 +4,7 @@
 struct blob_buf b;
 static struct ubus_msg_buf *retmsg;
 static int *retmsg_data;
+static struct avl_tree clients;
 
 static struct blob_attr *attrbuf[UBUS_ATTR_MAX];
 
@@ -48,7 +49,7 @@ static struct ubus_msg_buf *ubus_reply_from_blob(struct ubus_msg_buf *ub, bool s
 	return new;
 }
 
-bool ubusd_send_hello(struct ubus_client *cl)
+static bool ubusd_send_hello(struct ubus_client *cl)
 {
 	struct ubus_msg_buf *ub;
 
@@ -281,7 +282,7 @@ static const ubus_cmd_cb handlers[__UBUS_MSG_LAST] = {
 	[UBUS_MSG_DATA] = ubusd_handle_response,
 };
 
-void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)
+void ubusd_proto_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)
 {
 	ubus_cmd_cb cb = NULL;
 	int ret;
@@ -306,8 +307,49 @@ void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)
 	ubus_msg_send(cl, retmsg, false);
 }
 
+struct ubus_client *ubusd_proto_new_client(int fd, uloop_fd_handler cb)
+{
+	struct ubus_client *cl;
+
+	cl = calloc(1, sizeof(*cl));
+	if (!cl)
+		return NULL;
+
+	INIT_LIST_HEAD(&cl->objects);
+	cl->sock.fd = fd;
+	cl->sock.cb = cb;
+
+	if (!ubus_alloc_id(&clients, &cl->id, 0))
+		goto free;
+
+	if (!ubusd_send_hello(cl))
+		goto delete;
+
+	return cl;
+
+delete:
+	ubus_free_id(&clients, &cl->id);
+free:
+	free(cl);
+	return NULL;
+}
+
+void ubusd_proto_free_client(struct ubus_client *cl)
+{
+	struct ubus_object *obj;
+
+	while (!list_empty(&cl->objects)) {
+		obj = list_first_entry(&cl->objects, struct ubus_object, list);
+		ubusd_free_object(obj);
+	}
+
+	ubus_free_id(&clients, &cl->id);
+}
+
 static void __init ubusd_proto_init(void)
 {
+	ubus_init_id_tree(&clients);
+
 	blob_buf_init(&b, 0);
 	blob_put_int32(&b, UBUS_ATTR_STATUS, 0);
 
