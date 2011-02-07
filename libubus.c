@@ -10,14 +10,6 @@
 #include "libubus.h"
 #include "ubusmsg.h"
 
-#define DEBUG 1
-
-#ifdef DEBUG
-#define DPRINTF(_format, ...) fprintf(stderr, "ubus: " _format, ## __VA_ARGS__)
-#else
-#define DPRINTF(...) do {} while(0)
-#endif
-
 #define STATIC_IOV(_var) { .iov_base = (char *) &(_var), .iov_len = sizeof(_var) }
 
 const char *__ubus_strerror[__UBUS_STATUS_LAST] = {
@@ -354,9 +346,6 @@ static void ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 
 	case UBUS_MSG_INVOKE:
 		ubus_process_invoke(ctx, hdr);
-		break;
-	default:
-		DPRINTF("unknown message type: %d\n", hdr->type);
 		break;
 	}
 }
