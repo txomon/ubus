@@ -185,6 +185,9 @@ int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
 		    struct blob_attr *msg);
 
 /* ----------- events ----------- */
+int ubus_send_event(struct ubus_context *ctx, const char *id,
+		    struct blob_attr *data);
+
 int ubus_register_event_handler(struct ubus_context *ctx,
 				struct ubus_event_handler *ev,
 				const char *pattern);

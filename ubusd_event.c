@@ -3,6 +3,7 @@
 static struct avl_tree patterns;
 static LIST_HEAD(catch_all);
 static struct ubus_object *event_obj;
+static int event_seq = 0;
 
 enum evs_type {
 	EVS_PATTERN,
@@ -60,14 +61,14 @@ void ubusd_event_cleanup_object(struct ubus_object *obj)
 }
 
 enum {
-	EVMSG_PATTERN,
-	EVMSG_OBJECT,
-	EVMSG_LAST,
+	EVREG_PATTERN,
+	EVREG_OBJECT,
+	EVREG_LAST,
 };
 
-static struct blobmsg_policy ev_policy[] = {
-	[EVMSG_PATTERN] = { .name = "pattern", .type = BLOBMSG_TYPE_STRING },
-	[EVMSG_OBJECT] = { .name = "object", .type = BLOBMSG_TYPE_INT32 },
+static struct blobmsg_policy evr_policy[] = {
+	[EVREG_PATTERN] = { .name = "pattern", .type = BLOBMSG_TYPE_STRING },
+	[EVREG_OBJECT] = { .name = "object", .type = BLOBMSG_TYPE_INT32 },
 };
 
 
@@ -96,15 +97,15 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 {
 	struct event_source *ev;
 	struct ubus_object *obj;
-	struct blob_attr *attr[EVMSG_LAST];
+	struct blob_attr *attr[EVREG_LAST];
 	const char *pattern;
 	uint32_t id;
 
-	blobmsg_parse(ev_policy, EVMSG_LAST, attr, blob_data(msg), blob_len(msg));
-	if (!attr[EVMSG_OBJECT])
+	blobmsg_parse(evr_policy, EVREG_LAST, attr, blob_data(msg), blob_len(msg));
+	if (!attr[EVREG_OBJECT])
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	id = blobmsg_get_u32(attr[EVMSG_OBJECT]);
+	id = blobmsg_get_u32(attr[EVREG_OBJECT]);
 	if (id < UBUS_SYSTEM_OBJECT_MAX)
 		return UBUS_STATUS_PERMISSION_DENIED;
 
@@ -115,10 +116,10 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 	if (obj->client != cl)
 		return UBUS_STATUS_PERMISSION_DENIED;
 
-	if (!attr[EVMSG_PATTERN])
+	if (!attr[EVREG_PATTERN])
 		return ubusd_alloc_catchall(obj);
 
-	pattern = blobmsg_data(attr[EVMSG_PATTERN]);
+	pattern = blobmsg_data(attr[EVREG_PATTERN]);
 	ev = ubusd_alloc_event_source(obj, EVS_PATTERN, strlen(pattern) + 1);
 	ev->pattern.avl.key = (void *) (ev + 1);
 	strcpy(ev->pattern.avl.key, pattern);
@@ -127,10 +128,73 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 	return 0;
 }
 
+enum {
+	EVMSG_ID,
+	EVMSG_DATA,
+	EVMSG_LAST,
+};
+
+static struct blobmsg_policy ev_policy[] = {
+	[EVMSG_ID] = { .name = "id", .type = BLOBMSG_TYPE_STRING },
+	[EVMSG_DATA] = { .name = "data", .type = BLOBMSG_TYPE_TABLE },
+};
+
+static void ubusd_send_event_msg(struct ubus_msg_buf **ub, struct ubus_object *obj,
+				 const char *id, struct blob_attr *msg)
+{
+	uint32_t *objid_ptr;
+
+	if (*ub) {
+		objid_ptr = blob_data(blob_data((*ub)->data));
+		*objid_ptr = htonl(obj->id.id);
+	} else {
+		blob_buf_init(&b, 0);
+		blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id.id);
+		blob_put_string(&b, UBUS_ATTR_METHOD, id);
+		blob_put(&b, UBUS_ATTR_DATA, blobmsg_data(msg), blobmsg_data_len(msg));
+
+		*ub = ubus_msg_new(b.head, blob_raw_len(b.head), true);
+
+		(*ub)->hdr.type = UBUS_MSG_INVOKE;
+		(*ub)->hdr.peer = 0;
+	}
+	(*ub)->hdr.seq = ++event_seq;
+	ubus_msg_send(obj->client, *ub, false);
+}
+
+static int ubusd_send_event(struct ubus_client *cl, struct blob_attr *msg)
+{
+	struct ubus_msg_buf *ub = NULL;
+	struct event_source *ev;
+	struct blob_attr *attr[EVMSG_LAST];
+	const char *id;
+
+	blobmsg_parse(ev_policy, EVMSG_LAST, attr, blob_data(msg), blob_len(msg));
+	if (!attr[EVMSG_ID] || !attr[EVMSG_DATA])
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	id = blobmsg_data(attr[EVMSG_ID]);
+	list_for_each_entry(ev, &catch_all, catchall.list) {
+		/* do not loop back events */
+		if (ev->obj->client == cl)
+			continue;
+
+		ubusd_send_event_msg(&ub, ev->obj, id, attr[EVMSG_DATA]);
+	}
+
+	if (ub)
+		ubus_msg_free(ub);
+
+	return 0;
+}
+
 static int ubusd_event_recv(struct ubus_client *cl, const char *method, struct blob_attr *msg)
 {
 	if (!strcmp(method, "register"))
 		return ubusd_alloc_event_pattern(cl, msg);
+
+	if (!strcmp(method, "send"))
+		return ubusd_send_event(cl, msg);
 
 	return UBUS_STATUS_INVALID_COMMAND;
 }

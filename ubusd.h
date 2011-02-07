@@ -12,6 +12,8 @@
 #define UBUSD_CLIENT_BACKLOG	32
 #define UBUS_OBJ_HASH_BITS	4
 
+extern struct blob_buf b;
+
 struct ubus_msg_buf {
 	uint32_t refcount; /* ~0: uses external data buffer */
 	struct ubus_msghdr hdr;

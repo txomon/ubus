@@ -62,12 +62,8 @@ static void receive_event(struct ubus_context *ctx, struct ubus_event_handler *e
 {
 	char *str;
 
-	if (msg)
-		str = blobmsg_format_json(msg, true);
-	else
-		str = "";
-
-	fprintf(stderr, "\"%s\":{ %s }\n", type, str);
+	str = blobmsg_format_json(msg, true);
+	printf("\"%s\": %s\n", type, str);
 	free(str);
 }
 
@@ -105,6 +101,17 @@ static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
 	return 0;
 }
 
+static int ubus_cli_send(struct ubus_context *ctx, int argc, char **argv)
+{
+	blob_buf_init(&b, 0);
+	if (argc == 2 && !blobmsg_add_json_from_string(&b, argv[1])) {
+		fprintf(stderr, "Failed to parse message data\n");
+		return UBUS_STATUS_INVALID_ARGUMENT;
+	}
+
+	return ubus_send_event(ctx, argv[0], b.head);
+}
+
 static int usage(const char *prog)
 {
 	fprintf(stderr,
@@ -116,6 +123,7 @@ static int usage(const char *prog)
 		" - list [<path>]			List objects\n"
 		" - call <path> <method> [<message>]	Call an object method\n"
 		" - listen [<path>...]			Listen for events\n"
+		" - send <type> [<message>]		Send an event\n"
 		"\n", prog);
 	return 1;
 }
@@ -180,6 +188,10 @@ int main(int argc, char **argv)
 			ret = ubus_invoke(ctx, id, argv[1], b.head, receive_data, NULL);
 	} else if (!strcmp(cmd, "listen")) {
 		ret = ubus_cli_listen(ctx, argc, argv);
+	} else if (!strcmp(cmd, "send")) {
+		if (argc < 1 || argc > 2)
+			return usage(progname);
+		ret = ubus_cli_send(ctx, argc, argv);
 	} else {
 		return usage(progname);
 	}

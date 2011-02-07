@@ -1,7 +1,7 @@
 #include <arpa/inet.h>
 #include "ubusd.h"
 
-static struct blob_buf b;
+struct blob_buf b;
 static struct ubus_msg_buf *retmsg;
 static int *retmsg_data;
 

@@ -323,7 +323,7 @@ found:
 	req.peer = hdr->peer;
 	req.seq = hdr->seq;
 	ret = obj->methods[method].handler(ctx, obj, &req,
-					   obj->methods[method].name,
+					   blob_data(attrbuf[UBUS_ATTR_METHOD]),
 					   attrbuf[UBUS_ATTR_DATA]);
 
 send:
@@ -732,6 +732,23 @@ int ubus_register_event_handler(struct ubus_context *ctx,
 	return 0;
 }
 
+int ubus_send_event(struct ubus_context *ctx, const char *id,
+		    struct blob_attr *data)
+{
+	struct ubus_request req;
+	void *s;
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, UBUS_SYSTEM_OBJECT_EVENT);
+	blob_put_string(&b, UBUS_ATTR_METHOD, "send");
+	s = blob_nest_start(&b, UBUS_ATTR_DATA);
+	blobmsg_add_string(&b, "id", id);
+	blobmsg_add_field(&b, BLOBMSG_TYPE_TABLE, "data", blob_data(data), blob_len(data));
+	blob_nest_end(&b, s);
+
+	ubus_start_request(ctx, &req, b.head, UBUS_MSG_INVOKE, UBUS_SYSTEM_OBJECT_EVENT);
+	return ubus_complete_request(ctx, &req);
+}
 
 static void ubus_default_connection_lost(struct ubus_context *ctx)
 {
