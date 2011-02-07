@@ -53,8 +53,6 @@ struct ubus_client *ubusd_get_client_by_id(uint32_t id);
 void ubusd_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub);
 bool ubusd_send_hello(struct ubus_client *cl);
 
-struct blob_attr **ubus_parse_msg(struct blob_attr *msg);
-
 void ubusd_event_init(void);
 void ubusd_event_cleanup_object(struct ubus_object *obj);
 

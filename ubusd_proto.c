@@ -17,7 +17,7 @@ static const struct blob_attr_info ubus_policy[UBUS_ATTR_MAX] = {
 	[UBUS_ATTR_STATUS] = { .type = BLOB_ATTR_INT32 },
 };
 
-struct blob_attr **ubus_parse_msg(struct blob_attr *msg)
+static struct blob_attr **ubus_parse_msg(struct blob_attr *msg)
 {
 	blob_parse(msg, attrbuf, ubus_policy, UBUS_ATTR_MAX);
 	return attrbuf;
