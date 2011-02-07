@@ -33,14 +33,14 @@ static void receive_lookup(struct ubus_context *ctx, struct ubus_object_data *ob
 	char *s;
 	int rem;
 
-	fprintf(stderr, "'%s' @%08x\n", obj->path, obj->id);
+	printf("'%s' @%08x\n", obj->path, obj->id);
 
 	if (!obj->signature)
 		return;
 
 	blob_for_each_attr(cur, obj->signature, rem) {
 		s = blobmsg_format_json_with_cb(cur, false, format_type, NULL);
-		fprintf(stderr, "\t%s\n", s);
+		printf("\t%s\n", s);
 		free(s);
 	}
 }
@@ -52,7 +52,7 @@ static void receive_data(struct ubus_request *req, int type, struct blob_attr *m
 		return;
 
 	str = blobmsg_format_json(msg, true);
-	fprintf(stderr, "%s\n", str);
+	printf("%s\n", str);
 	free(str);
 }
 
