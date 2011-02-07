@@ -95,25 +95,14 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	fprintf(stderr, "Connected as ID 0x%08x\n", ctx->local_id);
-
-	fprintf(stderr, "Publishing object\n");
 	ret = ubus_add_object(ctx, &test_object);
 	if (ret)
 		fprintf(stderr, "Failed to add_object object: %s\n", ubus_strerror(ret));
-	else {
-		fprintf(stderr, "Object ID: %08x\n", test_object.id);
-		fprintf(stderr, "Object Type ID: %08x\n", test_object.type->id);
-	}
 
-	fprintf(stderr, "Publishing object\n");
 	ret = ubus_add_object(ctx, &test_object2);
 	if (ret)
 		fprintf(stderr, "Failed to add_object object: %s\n", ubus_strerror(ret));
-	else {
-		fprintf(stderr, "Object ID: %08x\n", test_object2.id);
-		fprintf(stderr, "Object Type ID: %08x\n", test_object2.type->id);
-	}
+
 	uloop_init();
 	ubus_add_uloop(ctx);
 	uloop_run();
