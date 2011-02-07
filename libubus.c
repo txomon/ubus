@@ -100,6 +100,9 @@ static int ubus_start_request(struct ubus_context *ctx, struct ubus_request *req
 {
 	memset(req, 0, sizeof(*req));
 
+	if (msg && blob_pad_len(msg) > UBUS_MAX_MSGLEN)
+		return -1;
+
 	INIT_LIST_HEAD(&req->list);
 	INIT_LIST_HEAD(&req->pending);
 	req->ctx = ctx;
@@ -450,7 +453,10 @@ int ubus_lookup(struct ubus_context *ctx, const char *path,
 	blob_buf_init(&b, 0);
 	if (path)
 		blob_put_string(&b, UBUS_ATTR_OBJPATH, path);
-	ubus_start_request(ctx, &lookup.req, b.head, UBUS_MSG_LOOKUP, 0);
+
+	if (ubus_start_request(ctx, &lookup.req, b.head, UBUS_MSG_LOOKUP, 0) < 0)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
 	lookup.req.raw_data_cb = ubus_lookup_cb;
 	lookup.req.priv = priv;
 	lookup.cb = cb;
@@ -477,7 +483,10 @@ int ubus_lookup_id(struct ubus_context *ctx, const char *path, uint32_t *id)
 	blob_buf_init(&b, 0);
 	if (path)
 		blob_put_string(&b, UBUS_ATTR_OBJPATH, path);
-	ubus_start_request(ctx, &req, b.head, UBUS_MSG_LOOKUP, 0);
+
+	if (ubus_start_request(ctx, &req, b.head, UBUS_MSG_LOOKUP, 0) < 0)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
 	req.raw_data_cb = ubus_lookup_id_cb;
 	req.priv = id;
 
@@ -499,7 +508,7 @@ int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
 	return 0;
 }
 
-void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method,
+int ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method,
                        struct blob_attr *msg, struct ubus_request *req)
 {
 	blob_buf_init(&b, 0);
@@ -508,7 +517,10 @@ void ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *metho
 	if (msg)
 		blob_put(&b, UBUS_ATTR_DATA, blob_data(msg), blob_len(msg));
 
-	ubus_start_request(ctx, req, b.head, UBUS_MSG_INVOKE, obj);
+	if (ubus_start_request(ctx, req, b.head, UBUS_MSG_INVOKE, obj) < 0)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	return 0;
 }
 
 int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,
@@ -614,7 +626,9 @@ static int __ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj)
 			return UBUS_STATUS_INVALID_ARGUMENT;
 	}
 
-	ubus_start_request(ctx, &req, b.head, UBUS_MSG_ADD_OBJECT, 0);
+	if (ubus_start_request(ctx, &req, b.head, UBUS_MSG_ADD_OBJECT, 0) < 0)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
 	req.raw_data_cb = ubus_add_object_cb;
 	req.priv = obj;
 	ret = ubus_complete_request(ctx, &req);
@@ -659,7 +673,10 @@ int ubus_remove_object(struct ubus_context *ctx, struct ubus_object *obj)
 
 	blob_buf_init(&b, 0);
 	blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id);
-	ubus_start_request(ctx, &req, b.head, UBUS_MSG_REMOVE_OBJECT, 0);
+
+	if (ubus_start_request(ctx, &req, b.head, UBUS_MSG_REMOVE_OBJECT, 0) < 0)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
 	req.raw_data_cb = ubus_remove_object_cb;
 	req.priv = obj;
 	ret = ubus_complete_request(ctx, &req);
@@ -735,7 +752,9 @@ int ubus_send_event(struct ubus_context *ctx, const char *id,
 	blobmsg_add_field(&b, BLOBMSG_TYPE_TABLE, "data", blob_data(data), blob_len(data));
 	blob_nest_end(&b, s);
 
-	ubus_start_request(ctx, &req, b.head, UBUS_MSG_INVOKE, UBUS_SYSTEM_OBJECT_EVENT);
+	if (ubus_start_request(ctx, &req, b.head, UBUS_MSG_INVOKE, UBUS_SYSTEM_OBJECT_EVENT) < 0)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
 	return ubus_complete_request(ctx, &req);
 }
 
