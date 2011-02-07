@@ -5,13 +5,12 @@
 
 static struct blob_buf b;
 
-static const char * const attr_types[] = {
-	[BLOBMSG_TYPE_INT32] = "\"Integer\"",
-	[BLOBMSG_TYPE_STRING] = "\"String\"",
-};
-
 static const char *format_type(void *priv, struct blob_attr *attr)
 {
+	static const char * const attr_types[] = {
+		[BLOBMSG_TYPE_INT32] = "\"Integer\"",
+		[BLOBMSG_TYPE_STRING] = "\"String\"",
+	};
 	const char *type = NULL;
 	int typeid;
 
@@ -27,7 +26,7 @@ static const char *format_type(void *priv, struct blob_attr *attr)
 	return type;
 }
 
-static void receive_lookup(struct ubus_context *ctx, struct ubus_object_data *obj, void *priv)
+static void receive_list_result(struct ubus_context *ctx, struct ubus_object_data *obj, void *priv)
 {
 	struct blob_attr *cur;
 	char *s;
@@ -45,7 +44,7 @@ static void receive_lookup(struct ubus_context *ctx, struct ubus_object_data *ob
 	}
 }
 
-static void receive_data(struct ubus_request *req, int type, struct blob_attr *msg)
+static void receive_call_result_data(struct ubus_request *req, int type, struct blob_attr *msg)
 {
 	char *str;
 	if (!msg)
@@ -56,7 +55,6 @@ static void receive_data(struct ubus_request *req, int type, struct blob_attr *m
 	free(str);
 }
 
-
 static void receive_event(struct ubus_context *ctx, struct ubus_event_handler *ev,
 			  const char *type, struct blob_attr *msg)
 {
@@ -65,6 +63,40 @@ static void receive_event(struct ubus_context *ctx, struct ubus_event_handler *e
 	str = blobmsg_format_json(msg, true);
 	printf("\"%s\": %s\n", type, str);
 	free(str);
+}
+
+static int ubus_cli_list(struct ubus_context *ctx, int argc, char **argv)
+{
+	const char *path = NULL;
+
+	if (argc > 1)
+		return -2;
+
+	if (argc == 1)
+		path = argv[0];
+
+	return ubus_lookup(ctx, path, receive_list_result, NULL);
+}
+
+static int ubus_cli_call(struct ubus_context *ctx, int argc, char **argv)
+{
+	uint32_t id;
+	int ret;
+
+	if (argc < 2 || argc > 3)
+		return -2;
+
+	blob_buf_init(&b, 0);
+	if (argc == 3 && !blobmsg_add_json_from_string(&b, argv[2])) {
+		fprintf(stderr, "Failed to parse message data\n");
+		return -1;
+	}
+
+	ret = ubus_lookup_id(ctx, argv[0], &id);
+	if (ret)
+		return ret;
+
+	return ubus_invoke(ctx, id, argv[1], b.head, receive_call_result_data, NULL);
 }
 
 static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
@@ -91,6 +123,7 @@ static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
 	if (ret) {
 		fprintf(stderr, "Error while registering for event '%s': %s\n",
 			event, ubus_strerror(ret));
+		return -1;
 	}
 
 	uloop_init();
@@ -103,10 +136,14 @@ static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
 
 static int ubus_cli_send(struct ubus_context *ctx, int argc, char **argv)
 {
+	if (argc < 1 || argc > 2)
+		return -2;
+
 	blob_buf_init(&b, 0);
+
 	if (argc == 2 && !blobmsg_add_json_from_string(&b, argv[1])) {
 		fprintf(stderr, "Failed to parse message data\n");
-		return UBUS_STATUS_INVALID_ARGUMENT;
+		return -1;
 	}
 
 	return ubus_send_event(ctx, argv[0], b.head);
@@ -128,13 +165,24 @@ static int usage(const char *prog)
 	return 1;
 }
 
+
+struct {
+	const char *name;
+	int (*cb)(struct ubus_context *ctx, int argc, char **argv);
+} commands[] = {
+	{ "list", ubus_cli_list },
+	{ "call", ubus_cli_call },
+	{ "listen", ubus_cli_listen },
+	{ "send", ubus_cli_send },
+};
+
 int main(int argc, char **argv)
 {
 	const char *progname, *ubus_socket = NULL;
 	static struct ubus_context *ctx;
 	char *cmd;
 	int ret = 0;
-	int ch;
+	int i, ch;
 
 	progname = argv[0];
 
@@ -151,55 +199,33 @@ int main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	cmd = argv[0];
+	if (argc < 1)
+		return usage(progname);
+
 	ctx = ubus_connect(ubus_socket);
 	if (!ctx) {
 		fprintf(stderr, "Failed to connect to ubus\n");
 		return -1;
 	}
 
-	cmd = argv[0];
-	if (argc < 1)
-		return usage(progname);
-
 	argv++;
 	argc--;
 
-	if (!strcmp(cmd, "list")) {
-		const char *path = NULL;
+	ret = -2;
+	for (i = 0; i < ARRAY_SIZE(commands); i++) {
+		if (strcmp(commands[i].name, cmd) != 0)
+			continue;
 
-		if (argc == 1)
-			path = argv[0];
-
-		ret = ubus_lookup(ctx, path, receive_lookup, NULL);
-	} else if (!strcmp(cmd, "call")) {
-		uint32_t id;
-
-		if (argc < 2 || argc > 3)
-			return usage(progname);
-
-		blob_buf_init(&b, 0);
-		if (argc == 3 && !blobmsg_add_json_from_string(&b, argv[2])) {
-			fprintf(stderr, "Failed to parse message data\n");
-			goto out;
-		}
-
-		ret = ubus_lookup_id(ctx, argv[0], &id);
-		if (!ret)
-			ret = ubus_invoke(ctx, id, argv[1], b.head, receive_data, NULL);
-	} else if (!strcmp(cmd, "listen")) {
-		ret = ubus_cli_listen(ctx, argc, argv);
-	} else if (!strcmp(cmd, "send")) {
-		if (argc < 1 || argc > 2)
-			return usage(progname);
-		ret = ubus_cli_send(ctx, argc, argv);
-	} else {
-		return usage(progname);
+		ret = commands[i].cb(ctx, argc, argv);
+		break;
 	}
 
-	if (ret)
-		fprintf(stderr, "Failed: %s\n", ubus_strerror(ret));
+	if (ret > 0)
+		fprintf(stderr, "Command failed: %s\n", ubus_strerror(ret));
+	else if (ret == -2)
+		usage(progname);
 
-out:
 	ubus_free(ctx);
 	return ret;
 }
