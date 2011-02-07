@@ -153,7 +153,7 @@ static bool ubus_validate_hdr(struct ubus_msghdr *hdr)
 	if (blob_raw_len(hdr->data) < sizeof(*hdr->data))
 		return false;
 
-	if (blob_raw_len(hdr->data) + sizeof(*hdr) > UBUS_MAX_MSGLEN)
+	if (blob_pad_len(hdr->data) > UBUS_MAX_MSGLEN)
 		return false;
 
 	return true;

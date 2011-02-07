@@ -97,7 +97,7 @@ struct ubus_context {
 
 	struct {
 		struct ubus_msghdr hdr;
-		char data[UBUS_MAX_MSGLEN - sizeof(struct ubus_msghdr)];
+		char data[UBUS_MAX_MSGLEN];
 	} msgbuf;
 };
 

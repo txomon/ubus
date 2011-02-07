@@ -206,7 +206,7 @@ retry:
 		if (cl->pending_msg_offset < sizeof(cl->hdrbuf))
 			goto out;
 
-		if (blob_len(&cl->hdrbuf.data) + sizeof(cl->hdrbuf) > UBUS_MAX_MSGLEN)
+		if (blob_pad_len(&cl->hdrbuf.data) > UBUS_MAX_MSGLEN)
 			goto disconnect;
 
 		cl->pending_msg = ubus_msg_new(NULL, blob_raw_len(&cl->hdrbuf.data), false);
