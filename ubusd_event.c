@@ -24,18 +24,6 @@ struct event_source {
 	};
 };
 
-struct event_pattern {
-	struct event_source evs;
-	struct list_head list;
-};
-
-struct event_catchall {
-	struct event_source evs;
-
-	struct list_head list;
-	struct ubus_object *obj;
-};
-
 static void ubusd_delete_event_source(struct event_source *evs)
 {
 	list_del(&evs->list);
