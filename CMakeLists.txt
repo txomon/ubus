@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 2.8)
 PROJECT(ubus C)
 ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -g3)
 
+SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
+
 IF(APPLE)
   INCLUDE_DIRECTORIES(/opt/local/include)
   LINK_DIRECTORIES(/opt/local/lib)
