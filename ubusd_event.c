@@ -130,9 +130,11 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 	return 0;
 }
 
+typedef struct ubus_msg_buf *(*event_fill_cb)(void *priv, const char *id);
+
 static void ubusd_send_event_msg(struct ubus_msg_buf **ub, struct ubus_client *cl,
 				 struct ubus_object *obj, const char *id,
-				 struct blob_attr *msg)
+				 event_fill_cb fill_cb, void *cb_priv)
 {
 	uint32_t *objid_ptr;
 
@@ -146,20 +148,15 @@ static void ubusd_send_event_msg(struct ubus_msg_buf **ub, struct ubus_client *c
 
 	obj->event_seen = obj_event_seq;
 
-	if (*ub) {
-		objid_ptr = blob_data(blob_data((*ub)->data));
-		*objid_ptr = htonl(obj->id.id);
-	} else {
-		blob_buf_init(&b, 0);
-		blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id.id);
-		blob_put_string(&b, UBUS_ATTR_METHOD, id);
-		blob_put(&b, UBUS_ATTR_DATA, blobmsg_data(msg), blobmsg_data_len(msg));
-
-		*ub = ubus_msg_new(b.head, blob_raw_len(b.head), true);
-
+	if (!*ub) {
+		*ub = fill_cb(cb_priv, id);
 		(*ub)->hdr.type = UBUS_MSG_INVOKE;
 		(*ub)->hdr.peer = 0;
 	}
+
+	objid_ptr = blob_data(blob_data((*ub)->data));
+	*objid_ptr = htonl(obj->id.id);
+
 	(*ub)->hdr.seq = ++event_seq;
 	ubus_msg_send(obj->client, *ub, false);
 }
@@ -174,13 +171,14 @@ bool strmatch_len(const char *s1, const char *s2, int *len)
 }
 
 static int ubusd_send_event(struct ubus_client *cl, const char *id,
-			    struct blob_attr *data, struct ubus_msg_buf *ub)
+			    event_fill_cb fill_cb, void *cb_priv)
 {
+	struct ubus_msg_buf *ub = NULL;
 	struct event_source *ev;
 	int match_len = 0;
 
 	list_for_each_entry(ev, &catch_all, catchall.list)
-		ubusd_send_event_msg(&ub, cl, ev->obj, id, data);
+		ubusd_send_event_msg(&ub, cl, ev->obj, id, fill_cb, cb_priv);
 
 	obj_event_seq++;
 
@@ -208,7 +206,7 @@ static int ubusd_send_event(struct ubus_client *cl, const char *id,
 				continue;
 		}
 
-		ubusd_send_event_msg(&ub, cl, ev->obj, id, data);
+		ubusd_send_event_msg(&ub, cl, ev->obj, id, fill_cb, cb_priv);
 	}
 
 	if (ub)
@@ -228,6 +226,19 @@ static struct blobmsg_policy ev_policy[] = {
 	[EVMSG_DATA] = { .name = "data", .type = BLOBMSG_TYPE_TABLE },
 };
 
+static struct ubus_msg_buf *
+ubusd_create_event_from_msg(void *priv, const char *id)
+{
+	struct blob_attr *msg = priv;
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, 0);
+	blob_put_string(&b, UBUS_ATTR_METHOD, id);
+	blob_put(&b, UBUS_ATTR_DATA, blobmsg_data(msg), blobmsg_data_len(msg));
+
+	return ubus_msg_new(b.head, blob_raw_len(b.head), true);
+}
+
 static int ubusd_forward_event(struct ubus_client *cl, struct blob_attr *msg)
 {
 	struct blob_attr *data;
@@ -244,7 +255,7 @@ static int ubusd_forward_event(struct ubus_client *cl, struct blob_attr *msg)
 	if (!strncmp(id, "ubus.", 5))
 		return UBUS_STATUS_PERMISSION_DENIED;
 
-	return ubusd_send_event(cl, id, data, NULL);
+	return ubusd_send_event(cl, id, ubusd_create_event_from_msg, data);
 }
 
 static int ubusd_event_recv(struct ubus_client *cl, const char *method, struct blob_attr *msg)
