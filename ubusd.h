@@ -53,6 +53,7 @@ void ubusd_proto_free_client(struct ubus_client *cl);
 
 void ubusd_event_init(void);
 void ubusd_event_cleanup_object(struct ubus_object *obj);
+void ubusd_send_obj_event(struct ubus_object *obj, bool add);
 
 
 #endif

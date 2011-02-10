@@ -269,6 +269,30 @@ static int ubusd_event_recv(struct ubus_client *cl, const char *method, struct b
 	return UBUS_STATUS_INVALID_COMMAND;
 }
 
+static struct ubus_msg_buf *
+ubusd_create_object_event_msg(void *priv, const char *id)
+{
+	struct ubus_object *obj = priv;
+	void *s;
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, 0);
+	blob_put_string(&b, UBUS_ATTR_METHOD, id);
+	s = blob_nest_start(&b, UBUS_ATTR_DATA);
+	blobmsg_add_u32(&b, "id", obj->id.id);
+	blobmsg_add_string(&b, "path", obj->path.key);
+	blob_nest_end(&b, s);
+
+	return ubus_msg_new(b.head, blob_raw_len(b.head), true);
+}
+
+void ubusd_send_obj_event(struct ubus_object *obj, bool add)
+{
+	const char *id = add ? "ubus.object.add" : "ubus.object.remove";
+
+	ubusd_send_event(NULL, id, ubusd_create_object_event_msg, obj);
+}
+
 void ubusd_event_init(void)
 {
 	ubus_init_string_tree(&patterns, true);
