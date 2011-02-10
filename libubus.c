@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/socket.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <libubox/blob.h>
@@ -71,6 +72,38 @@ out:
 	return err;
 }
 
+static int writev_retry(int fd, struct iovec *iov, int iov_len)
+{
+	int len = 0;
+
+	do {
+		int cur_len = writev(fd, iov, iov_len);
+		if (cur_len < 0) {
+			switch(errno) {
+			case EAGAIN:
+				/* turn off non-blocking mode */
+				fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) &
+				      ~O_NONBLOCK);
+				break;
+			case EINTR:
+				break;
+			default:
+				return -1;
+			}
+			continue;
+		}
+		len += cur_len;
+		while (cur_len >= iov->iov_len) {
+			cur_len -= iov->iov_len;
+			iov_len--;
+			iov++;
+			if (!cur_len || !iov_len)
+				return len;
+		}
+		iov->iov_len -= cur_len;
+	} while (1);
+}
+
 static int ubus_send_msg(struct ubus_context *ctx, uint32_t seq,
 			 struct blob_attr *msg, int cmd, uint32_t peer)
 {
@@ -92,7 +125,7 @@ static int ubus_send_msg(struct ubus_context *ctx, uint32_t seq,
 	iov[1].iov_base = (char *) msg;
 	iov[1].iov_len = blob_raw_len(msg);
 
-	return writev(ctx->sock.fd, iov, 2);
+	return writev_retry(ctx->sock.fd, iov, ARRAY_SIZE(iov));
 }
 
 static int ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
