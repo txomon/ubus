@@ -130,17 +130,6 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 	return 0;
 }
 
-enum {
-	EVMSG_ID,
-	EVMSG_DATA,
-	EVMSG_LAST,
-};
-
-static struct blobmsg_policy ev_policy[] = {
-	[EVMSG_ID] = { .name = "id", .type = BLOBMSG_TYPE_STRING },
-	[EVMSG_DATA] = { .name = "data", .type = BLOBMSG_TYPE_TABLE },
-};
-
 static void ubusd_send_event_msg(struct ubus_msg_buf **ub, struct ubus_client *cl,
 				 struct ubus_object *obj, const char *id,
 				 struct blob_attr *msg)
@@ -184,21 +173,11 @@ bool strmatch_len(const char *s1, const char *s2, int *len)
 	return false;
 }
 
-static int ubusd_send_event(struct ubus_client *cl, struct blob_attr *msg)
+static int ubusd_send_event(struct ubus_client *cl, const char *id,
+			    struct blob_attr *data, struct ubus_msg_buf *ub)
 {
-	struct ubus_msg_buf *ub = NULL;
 	struct event_source *ev;
-	struct blob_attr *attr[EVMSG_LAST];
-	const char *id;
 	int match_len = 0;
-	void *data;
-
-	blobmsg_parse(ev_policy, EVMSG_LAST, attr, blob_data(msg), blob_len(msg));
-	if (!attr[EVMSG_ID] || !attr[EVMSG_DATA])
-		return UBUS_STATUS_INVALID_ARGUMENT;
-
-	id = blobmsg_data(attr[EVMSG_ID]);
-	data = attr[EVMSG_DATA];
 
 	list_for_each_entry(ev, &catch_all, catchall.list)
 		ubusd_send_event_msg(&ub, cl, ev->obj, id, data);
@@ -238,13 +217,43 @@ static int ubusd_send_event(struct ubus_client *cl, struct blob_attr *msg)
 	return 0;
 }
 
+enum {
+	EVMSG_ID,
+	EVMSG_DATA,
+	EVMSG_LAST,
+};
+
+static struct blobmsg_policy ev_policy[] = {
+	[EVMSG_ID] = { .name = "id", .type = BLOBMSG_TYPE_STRING },
+	[EVMSG_DATA] = { .name = "data", .type = BLOBMSG_TYPE_TABLE },
+};
+
+static int ubusd_forward_event(struct ubus_client *cl, struct blob_attr *msg)
+{
+	struct blob_attr *data;
+	struct blob_attr *attr[EVMSG_LAST];
+	const char *id;
+
+	blobmsg_parse(ev_policy, EVMSG_LAST, attr, blob_data(msg), blob_len(msg));
+	if (!attr[EVMSG_ID] || !attr[EVMSG_DATA])
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	id = blobmsg_data(attr[EVMSG_ID]);
+	data = attr[EVMSG_DATA];
+
+	if (!strncmp(id, "ubus.", 5))
+		return UBUS_STATUS_PERMISSION_DENIED;
+
+	return ubusd_send_event(cl, id, data, NULL);
+}
+
 static int ubusd_event_recv(struct ubus_client *cl, const char *method, struct blob_attr *msg)
 {
 	if (!strcmp(method, "register"))
 		return ubusd_alloc_event_pattern(cl, msg);
 
 	if (!strcmp(method, "send"))
-		return ubusd_send_event(cl, msg);
+		return ubusd_forward_event(cl, msg);
 
 	return UBUS_STATUS_INVALID_COMMAND;
 }
