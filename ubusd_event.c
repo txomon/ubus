@@ -5,7 +5,7 @@ static struct avl_tree patterns;
 static LIST_HEAD(catch_all);
 static struct ubus_object *event_obj;
 static int event_seq = 0;
-static int obj_event_seq = 0;
+static int obj_event_seq = 1;
 
 enum evs_type {
 	EVS_PATTERN,
