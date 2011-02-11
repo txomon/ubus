@@ -108,17 +108,25 @@ static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
 	memset(&listener, 0, sizeof(listener));
 	listener.cb = receive_event;
 
-	if (!argc) {
+	if (argc > 0) {
+		event = argv[0];
+	} else {
 		event = "*";
-		ret = ubus_register_event_handler(ctx, &listener, NULL);
+		argc = 1;
 	}
 
-	for (;argc;argv++, argc--) {
-		event = argv[0];
-		ret = ubus_register_event_handler(ctx, &listener, argv[0]);
+	do {
+		ret = ubus_register_event_handler(ctx, &listener, event);
 		if (ret)
 			break;
-	}
+
+		argv++;
+		argc--;
+		if (argc <= 0)
+			break;
+
+		event = argv[0];
+	} while (1);
 
 	if (ret) {
 		fprintf(stderr, "Error while registering for event '%s': %s\n",

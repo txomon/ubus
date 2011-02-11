@@ -765,10 +765,8 @@ int ubus_register_event_handler(struct ubus_context *ctx,
 	if (pattern)
 		blobmsg_add_string(&b2, "pattern", pattern);
 
-	ret = ubus_invoke(ctx, UBUS_SYSTEM_OBJECT_EVENT, "register", b2.head,
+	return ubus_invoke(ctx, UBUS_SYSTEM_OBJECT_EVENT, "register", b2.head,
 			  NULL, NULL);
-
-	return 0;
 }
 
 int ubus_send_event(struct ubus_context *ctx, const char *id,

@@ -2,42 +2,21 @@
 #include "ubusd.h"
 
 static struct avl_tree patterns;
-static LIST_HEAD(catch_all);
 static struct ubus_object *event_obj;
 static int event_seq = 0;
 static int obj_event_seq = 1;
 
-enum evs_type {
-	EVS_PATTERN,
-	EVS_CATCHALL
-};
-
 struct event_source {
 	struct list_head list;
 	struct ubus_object *obj;
-	enum evs_type type;
-	union {
-		struct {
-			struct avl_node avl;
-			bool partial;
-		} pattern;
-		struct {
-			struct list_head list;
-		} catchall;
-	};
+	struct avl_node avl;
+	bool partial;
 };
 
 static void ubusd_delete_event_source(struct event_source *evs)
 {
 	list_del(&evs->list);
-	switch (evs->type) {
-	case EVS_PATTERN:
-		avl_delete(&patterns, &evs->pattern.avl);
-		break;
-	case EVS_CATCHALL:
-		list_del(&evs->catchall.list);
-		break;
-	}
+	avl_delete(&patterns, &evs->avl);
 	free(evs);
 }
 
@@ -62,28 +41,6 @@ static struct blobmsg_policy evr_policy[] = {
 	[EVREG_OBJECT] = { .name = "object", .type = BLOBMSG_TYPE_INT32 },
 };
 
-
-static struct event_source *ubusd_alloc_event_source(struct ubus_object *obj, enum evs_type type, int datalen)
-{
-	struct event_source *evs;
-
-	evs = calloc(1, sizeof(*evs) + datalen);
-	list_add(&evs->list, &obj->events);
-	evs->obj = obj;
-	evs->type = type;
-	return evs;
-}
-
-static int ubusd_alloc_catchall(struct ubus_object *obj)
-{
-	struct event_source *evs;
-
-	evs = ubusd_alloc_event_source(obj, EVS_CATCHALL, 0);
-	list_add(&evs->catchall.list, &catch_all);
-
-	return 0;
-}
-
 static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *msg)
 {
 	struct event_source *ev;
@@ -95,7 +52,7 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 	int len;
 
 	blobmsg_parse(evr_policy, EVREG_LAST, attr, blob_data(msg), blob_len(msg));
-	if (!attr[EVREG_OBJECT])
+	if (!attr[EVREG_OBJECT] || !attr[EVREG_PATTERN])
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
 	id = blobmsg_get_u32(attr[EVREG_OBJECT]);
@@ -109,9 +66,6 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 	if (obj->client != cl)
 		return UBUS_STATUS_PERMISSION_DENIED;
 
-	if (!attr[EVREG_PATTERN])
-		return ubusd_alloc_catchall(obj);
-
 	pattern = blobmsg_data(attr[EVREG_PATTERN]);
 
 	len = strlen(pattern);
@@ -121,11 +75,16 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 		len--;
 	}
 
-	ev = ubusd_alloc_event_source(obj, EVS_PATTERN, len + 1);
-	ev->pattern.partial = partial;
-	ev->pattern.avl.key = (void *) (ev + 1);
-	strcpy(ev->pattern.avl.key, pattern);
-	avl_insert(&patterns, &ev->pattern.avl);
+	ev = calloc(1, sizeof(*ev) + len + 1);
+	if (!ev)
+		return UBUS_STATUS_NO_DATA;
+
+	list_add(&ev->list, &obj->events);
+	ev->obj = obj;
+	ev->partial = partial;
+	ev->avl.key = (void *) (ev + 1);
+	strcpy(ev->avl.key, pattern);
+	avl_insert(&patterns, &ev->avl);
 
 	return 0;
 }
@@ -177,9 +136,6 @@ static int ubusd_send_event(struct ubus_client *cl, const char *id,
 	struct event_source *ev;
 	int match_len = 0;
 
-	list_for_each_entry(ev, &catch_all, catchall.list)
-		ubusd_send_event_msg(&ub, cl, ev->obj, id, fill_cb, cb_priv);
-
 	obj_event_seq++;
 
 	/*
@@ -187,8 +143,8 @@ static int ubusd_send_event(struct ubus_client *cl, const char *id,
 	 * matching entries as long as the number of matching characters
 	 * between the pattern string and our string is monotonically increasing.
 	 */
-	avl_for_each_element(&patterns, ev, pattern.avl) {
-		const char *key = ev->pattern.avl.key;
+	avl_for_each_element(&patterns, ev, avl) {
+		const char *key = ev->avl.key;
 		int cur_match_len;
 		bool full_match;
 
@@ -199,7 +155,7 @@ static int ubusd_send_event(struct ubus_client *cl, const char *id,
 		match_len = cur_match_len;
 
 		if (!full_match) {
-			if (!ev->pattern.partial)
+			if (!ev->partial)
 				continue;
 
 			if (match_len != strlen(key))
