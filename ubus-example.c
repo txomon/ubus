@@ -7,11 +7,10 @@ struct blob_buf b;
 
 static const struct ubus_signature test_object_sig[] = {
 	UBUS_METHOD_START("hello"),
-	  UBUS_ARRAY("test"),
-		UBUS_TABLE_START(NULL),
-		  UBUS_FIELD(INT32, "id"),
-		  UBUS_FIELD(STRING, "msg"),
-		UBUS_TABLE_END(),
+	  UBUS_TABLE_START(NULL),
+	    UBUS_FIELD(INT32, "id"),
+	    UBUS_FIELD(STRING, "msg"),
+	  UBUS_TABLE_END(),
 	UBUS_METHOD_END(),
 };
 
