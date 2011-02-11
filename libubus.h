@@ -154,7 +154,8 @@ static inline void ubus_handle_event(struct ubus_context *ctx)
 /* ----------- raw request handling ----------- */
 
 /* wait for a request to complete and return its status */
-int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req);
+int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req,
+			  int timeout);
 
 /* complete a request asynchronously */
 void ubus_complete_request_async(struct ubus_context *ctx,
@@ -180,11 +181,12 @@ int ubus_remove_object(struct ubus_context *ctx, struct ubus_object *obj);
 
 /* invoke a method on a specific object */
 int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,
-                struct blob_attr *msg, ubus_data_handler_t cb, void *priv);
+		struct blob_attr *msg, ubus_data_handler_t cb, void *priv,
+		int timeout);
 
 /* asynchronous version of ubus_invoke() */
 int ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method,
-                      struct blob_attr *msg, struct ubus_request *req);
+		      struct blob_attr *msg, struct ubus_request *req);
 
 /* send a reply to an incoming object method call */
 int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,

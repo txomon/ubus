@@ -4,6 +4,7 @@
 #include "libubus.h"
 
 static struct blob_buf b;
+static int timeout = 30;
 
 static const char *format_type(void *priv, struct blob_attr *attr)
 {
@@ -96,7 +97,7 @@ static int ubus_cli_call(struct ubus_context *ctx, int argc, char **argv)
 	if (ret)
 		return ret;
 
-	return ubus_invoke(ctx, id, argv[1], b.head, receive_call_result_data, NULL);
+	return ubus_invoke(ctx, id, argv[1], b.head, receive_call_result_data, NULL, timeout * 1000);
 }
 
 static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
@@ -194,10 +195,13 @@ int main(int argc, char **argv)
 
 	progname = argv[0];
 
-	while ((ch = getopt(argc, argv, "s:")) != -1) {
+	while ((ch = getopt(argc, argv, "s:t:")) != -1) {
 		switch (ch) {
 		case 's':
 			ubus_socket = optarg;
+			break;
+		case 't':
+			timeout = atoi(optarg);
 			break;
 		default:
 			return usage(progname);

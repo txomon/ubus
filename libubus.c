@@ -21,6 +21,7 @@ const char *__ubus_strerror[__UBUS_STATUS_LAST] = {
 	[UBUS_STATUS_NOT_FOUND] = "Not found",
 	[UBUS_STATUS_NO_DATA] = "No response",
 	[UBUS_STATUS_PERMISSION_DENIED] = "Permission denied",
+	[UBUS_STATUS_TIMEOUT] = "Request timed out",
 };
 
 static struct blob_buf b;
@@ -157,10 +158,8 @@ static bool recv_retry(int fd, struct iovec *iov, bool wait)
 			if (errno == EINTR)
 				continue;
 
-			if (errno != EAGAIN) {
-				perror("read");
+			if (errno != EAGAIN)
 				return false;
-			}
 		}
 		if (!wait && !bytes)
 			return false;
@@ -187,13 +186,13 @@ static bool ubus_validate_hdr(struct ubus_msghdr *hdr)
 	return true;
 }
 
-static bool get_next_msg(struct ubus_context *ctx, bool wait)
+static bool get_next_msg(struct ubus_context *ctx)
 {
 	struct iovec iov = STATIC_IOV(ctx->msgbuf.hdr);
 
 	/* receive header + start attribute */
 	iov.iov_len += sizeof(struct blob_attr);
-	if (!recv_retry(ctx->sock.fd, &iov, wait))
+	if (!recv_retry(ctx->sock.fd, &iov, false))
 		return false;
 
 	iov.iov_len = blob_len(ctx->msgbuf.hdr.data);
@@ -409,47 +408,77 @@ static void ubus_handle_data(struct uloop_fd *u, unsigned int events)
 	struct ubus_context *ctx = container_of(u, struct ubus_context, sock);
 	struct ubus_msghdr *hdr = &ctx->msgbuf.hdr;
 
-	while (get_next_msg(ctx, false))
+	while (get_next_msg(ctx)) {
 		ubus_process_msg(ctx, hdr);
+		if (uloop_cancelled)
+			break;
+	}
 
 	if (u->eof)
 		ctx->connection_lost(ctx);
 }
 
-int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req)
+static void ubus_sync_req_cb(struct ubus_request *req, int ret)
 {
-	struct ubus_msghdr *hdr = &ctx->msgbuf.hdr;
+	req->status_msg = true;
+	req->status_code = ret;
+	uloop_end();
+}
 
-	if (!list_empty(&req->list))
-		list_del(&req->list);
+struct ubus_sync_req_cb {
+	struct uloop_timeout timeout;
+	struct ubus_request *req;
+};
 
-	while (1) {
-		if (req->status_msg)
-			return req->status_code;
+static void ubus_sync_req_timeout_cb(struct uloop_timeout *timeout)
+{
+	struct ubus_sync_req_cb *cb;
 
-		if (req->cancelled)
-			return UBUS_STATUS_NO_DATA;
+	cb = container_of(timeout, struct ubus_sync_req_cb, timeout);
+	ubus_sync_req_cb(cb->req, UBUS_STATUS_TIMEOUT);
+}
 
-		if (!get_next_msg(ctx, true))
-			return UBUS_STATUS_NO_DATA;
+int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req,
+			  int timeout)
+{
+	struct ubus_sync_req_cb cb;
+	ubus_complete_handler_t complete_cb = req->complete_cb;
+	bool registered = ctx->sock.registered;
+	bool cancelled = uloop_cancelled;
+	int status = UBUS_STATUS_NO_DATA;
 
-		if (hdr->seq != req->seq || hdr->peer != req->peer)
-			goto skip;
-
-		switch(hdr->type) {
-		case UBUS_MSG_STATUS:
-			return ubus_process_req_status(req, hdr);
-		case UBUS_MSG_DATA:
-			if (req->data_cb || req->raw_data_cb)
-				ubus_req_data(req, hdr);
-			continue;
-		default:
-			goto skip;
-		}
-
-skip:
-		ubus_process_msg(ctx, hdr);
+	if (!registered) {
+		uloop_init();
+		ubus_add_uloop(ctx);
 	}
+
+	if (timeout) {
+		memset(&cb, 0, sizeof(cb));
+		cb.req = req;
+		cb.timeout.cb = ubus_sync_req_timeout_cb;
+		uloop_timeout_set(&cb.timeout, timeout);
+	}
+
+	ubus_complete_request_async(ctx, req);
+	req->complete_cb = ubus_sync_req_cb;
+
+	uloop_run();
+
+	if (timeout)
+		uloop_timeout_cancel(&cb.timeout);
+
+	if (req->status_msg)
+		status = req->status_code;
+
+	req->complete_cb = complete_cb;
+	if (req->complete_cb)
+		req->complete_cb(req, status);
+
+	uloop_cancelled = cancelled;
+	if (!registered)
+		uloop_fd_delete(&ctx->sock);
+
+	return status;
 }
 
 struct ubus_lookup_request {
@@ -493,7 +522,7 @@ int ubus_lookup(struct ubus_context *ctx, const char *path,
 	lookup.req.raw_data_cb = ubus_lookup_cb;
 	lookup.req.priv = priv;
 	lookup.cb = cb;
-	return ubus_complete_request(ctx, &lookup.req);
+	return ubus_complete_request(ctx, &lookup.req, 0);
 }
 
 static void ubus_lookup_id_cb(struct ubus_request *req, int type, struct blob_attr *msg)
@@ -523,7 +552,7 @@ int ubus_lookup_id(struct ubus_context *ctx, const char *path, uint32_t *id)
 	req.raw_data_cb = ubus_lookup_id_cb;
 	req.priv = id;
 
-	return ubus_complete_request(ctx, &req);
+	return ubus_complete_request(ctx, &req, 0);
 }
 
 int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
@@ -557,14 +586,15 @@ int ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method
 }
 
 int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,
-                struct blob_attr *msg, ubus_data_handler_t cb, void *priv)
+                struct blob_attr *msg, ubus_data_handler_t cb, void *priv,
+		int timeout)
 {
 	struct ubus_request req;
 
 	ubus_invoke_async(ctx, obj, method, msg, &req);
 	req.data_cb = cb;
 	req.priv = priv;
-	return ubus_complete_request(ctx, &req);
+	return ubus_complete_request(ctx, &req, timeout);
 }
 
 static void ubus_add_object_cb(struct ubus_request *req, int type, struct blob_attr *msg)
@@ -664,7 +694,7 @@ static int __ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj)
 
 	req.raw_data_cb = ubus_add_object_cb;
 	req.priv = obj;
-	ret = ubus_complete_request(ctx, &req);
+	ret = ubus_complete_request(ctx, &req, 0);
 	if (ret)
 		return ret;
 
@@ -712,7 +742,7 @@ int ubus_remove_object(struct ubus_context *ctx, struct ubus_object *obj)
 
 	req.raw_data_cb = ubus_remove_object_cb;
 	req.priv = obj;
-	ret = ubus_complete_request(ctx, &req);
+	ret = ubus_complete_request(ctx, &req, 0);
 	if (ret)
 		return ret;
 
@@ -766,7 +796,7 @@ int ubus_register_event_handler(struct ubus_context *ctx,
 		blobmsg_add_string(&b2, "pattern", pattern);
 
 	return ubus_invoke(ctx, UBUS_SYSTEM_OBJECT_EVENT, "register", b2.head,
-			  NULL, NULL);
+			  NULL, NULL, 0);
 }
 
 int ubus_send_event(struct ubus_context *ctx, const char *id,
@@ -786,7 +816,7 @@ int ubus_send_event(struct ubus_context *ctx, const char *id,
 	if (ubus_start_request(ctx, &req, b.head, UBUS_MSG_INVOKE, UBUS_SYSTEM_OBJECT_EVENT) < 0)
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	return ubus_complete_request(ctx, &req);
+	return ubus_complete_request(ctx, &req, 0);
 }
 
 static void ubus_default_connection_lost(struct ubus_context *ctx)
