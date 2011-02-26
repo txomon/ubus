@@ -49,7 +49,7 @@ typedef void (*ubus_complete_handler_t)(struct ubus_request *req, int ret);
 	}
 
 struct ubus_signature {
-	enum blobmsg_type type;
+	int type;
 	const char *name;
 };
 
