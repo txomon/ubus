@@ -31,7 +31,7 @@ static bool ubus_create_obj_method(struct ubus_object_type *type, struct blob_at
 	if (!m)
 		return false;
 
-	list_add(&m->list, &type->methods);
+	list_add_tail(&m->list, &type->methods);
 	memcpy(m->data, attr, bloblen);
 	m->name = blobmsg_name(m->data);
 
