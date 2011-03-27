@@ -5,6 +5,7 @@
 
 static struct blob_buf b;
 static int timeout = 30;
+static bool simple_output = false;
 
 static const char *format_type(void *priv, struct blob_attr *attr)
 {
@@ -33,6 +34,11 @@ static void receive_list_result(struct ubus_context *ctx, struct ubus_object_dat
 	struct blob_attr *cur;
 	char *s;
 	int rem;
+
+	if (simple_output) {
+		printf("%s\n", obj->path);
+		return;
+	}
 
 	printf("'%s' @%08x\n", obj->path, obj->id);
 
@@ -63,7 +69,7 @@ static void receive_event(struct ubus_context *ctx, struct ubus_event_handler *e
 	char *str;
 
 	str = blobmsg_format_json(msg, true);
-	printf("\"%s\": %s\n", type, str);
+	printf("{ \"%s\": %s }\n", type, str);
 	free(str);
 }
 
@@ -165,6 +171,8 @@ static int usage(const char *prog)
 		"Usage: %s [<options>] <command> [arguments...]\n"
 		"Options:\n"
 		" -s <socket>:		Set the unix domain socket to connect to\n"
+		" -t <timeout>:		Set the timeout (in seconds) for a command to complete\n"
+		" -S:			Use simplified output (for scripts)\n"
 		"\n"
 		"Commands:\n"
 		" - list [<path>]			List objects\n"
@@ -196,13 +204,16 @@ int main(int argc, char **argv)
 
 	progname = argv[0];
 
-	while ((ch = getopt(argc, argv, "s:t:")) != -1) {
+	while ((ch = getopt(argc, argv, "s:t:S")) != -1) {
 		switch (ch) {
 		case 's':
 			ubus_socket = optarg;
 			break;
 		case 't':
 			timeout = atoi(optarg);
+			break;
+		case 'S':
+			simple_output = true;
 			break;
 		default:
 			return usage(progname);
