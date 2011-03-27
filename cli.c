@@ -96,7 +96,8 @@ static int ubus_cli_call(struct ubus_context *ctx, int argc, char **argv)
 
 	blob_buf_init(&b, 0);
 	if (argc == 3 && !blobmsg_add_json_from_string(&b, argv[2])) {
-		fprintf(stderr, "Failed to parse message data\n");
+		if (!simple_output)
+			fprintf(stderr, "Failed to parse message data\n");
 		return -1;
 	}
 
@@ -137,8 +138,9 @@ static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
 	} while (1);
 
 	if (ret) {
-		fprintf(stderr, "Error while registering for event '%s': %s\n",
-			event, ubus_strerror(ret));
+		if (!simple_output)
+			fprintf(stderr, "Error while registering for event '%s': %s\n",
+				event, ubus_strerror(ret));
 		return -1;
 	}
 
@@ -158,7 +160,8 @@ static int ubus_cli_send(struct ubus_context *ctx, int argc, char **argv)
 	blob_buf_init(&b, 0);
 
 	if (argc == 2 && !blobmsg_add_json_from_string(&b, argv[1])) {
-		fprintf(stderr, "Failed to parse message data\n");
+		if (!simple_output)
+			fprintf(stderr, "Failed to parse message data\n");
 		return -1;
 	}
 
@@ -229,7 +232,8 @@ int main(int argc, char **argv)
 
 	ctx = ubus_connect(ubus_socket);
 	if (!ctx) {
-		fprintf(stderr, "Failed to connect to ubus\n");
+		if (!simple_output)
+			fprintf(stderr, "Failed to connect to ubus\n");
 		return -1;
 	}
 
@@ -245,7 +249,7 @@ int main(int argc, char **argv)
 		break;
 	}
 
-	if (ret > 0)
+	if (ret > 0 && !simple_output)
 		fprintf(stderr, "Command failed: %s\n", ubus_strerror(ret));
 	else if (ret == -2)
 		usage(progname);
