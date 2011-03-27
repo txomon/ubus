@@ -615,59 +615,29 @@ static void ubus_add_object_cb(struct ubus_request *req, int type, struct blob_a
 	avl_insert(&req->ctx->objects, &obj->avl);
 }
 
-static bool ubus_push_table_data(const struct ubus_signature **sig, int *rem, bool array)
+static void ubus_push_method_data(const struct ubus_method *m)
 {
-	const struct ubus_signature *cur;
-	bool nest_type;
-	void *nest;
+	void *mtbl;
+	int i;
 
-	while (rem) {
-		cur = (*sig)++;
-		(*rem)--;
-		switch(cur->type) {
-		case UBUS_SIGNATURE_END:
-			return !array;
-		case BLOBMSG_TYPE_INT32:
-		case BLOBMSG_TYPE_STRING:
-			blobmsg_add_u32(&b, cur->name, cur->type);
-			break;
-		case BLOBMSG_TYPE_TABLE:
-		case BLOBMSG_TYPE_ARRAY:
-			nest_type = cur->type == BLOBMSG_TYPE_ARRAY;
-			nest = blobmsg_open_nested(&b, cur->name, nest_type);
-			if (!ubus_push_table_data(sig, rem, nest_type))
-				return false;
-			blobmsg_close_table(&b, nest);
-			break;
-		default:
-			return false;
-		}
-		if (array)
-			return true;
-	}
-	return false;
+	mtbl = blobmsg_open_table(&b, m->name);
+
+	for (i = 0; i < m->n_policy; i++)
+		blobmsg_add_u32(&b, m->policy[i].name, m->policy[i].type);
+
+	blobmsg_close_table(&b, mtbl);
 }
 
-static bool ubus_push_object_type(struct ubus_object_type *type)
+static bool ubus_push_object_type(const struct ubus_object_type *type)
 {
-	void *s, *m;
-	int rem = type->n_signature;
-	const struct ubus_signature *sig = type->signature;
+	void *s;
+	int i;
 
 	s = blob_nest_start(&b, UBUS_ATTR_SIGNATURE);
-	while (rem) {
-		if (sig->type != UBUS_SIGNATURE_METHOD)
-			return false;
 
-		m = blobmsg_open_table(&b, sig->name);
+	for (i = 0; i < type->n_methods; i++)
+		ubus_push_method_data(&type->methods[i]);
 
-		sig++;
-		rem--;
-		if (!ubus_push_table_data(&sig, &rem, false))
-			return false;
-
-		blobmsg_close_table(&b, m);
-	}
 	blob_nest_end(&b, s);
 
 	return true;

@@ -26,43 +26,36 @@ typedef void (*ubus_data_handler_t)(struct ubus_request *req,
 				    int type, struct blob_attr *msg);
 typedef void (*ubus_complete_handler_t)(struct ubus_request *req, int ret);
 
-
-#define UBUS_SIGNATURE(_type, _name)	{ .type = _type, .name = _name }
-
-#define UBUS_METHOD_START(_name)		UBUS_SIGNATURE(UBUS_SIGNATURE_METHOD, _name)
-#define UBUS_METHOD_END()			UBUS_SIGNATURE(UBUS_SIGNATURE_END, NULL)
-
-#define UBUS_FIELD(_type, _name)		UBUS_SIGNATURE(BLOBMSG_TYPE_ ## _type, _name)
-
-#define UBUS_ARRAY(_name)			UBUS_FIELD(ARRAY, _name)
-#define UBUS_ARRAY_END()			UBUS_SIGNATURE(UBUS_SIGNATURE_END, NULL)
-
-#define UBUS_TABLE_START(_name)			UBUS_FIELD(TABLE, _name)
-#define UBUS_TABLE_END()			UBUS_SIGNATURE(UBUS_SIGNATURE_END, NULL)
-
-#define UBUS_OBJECT_TYPE(_name, _signature)		\
+#define UBUS_OBJECT_TYPE(_name, _methods)		\
 	{						\
 		.name = _name,				\
 		.id = 0,				\
-		.n_signature = ARRAY_SIZE(_signature),	\
-		.signature = _signature			\
+		.n_methods = ARRAY_SIZE(_methods),	\
+		.methods = _methods			\
 	}
 
-struct ubus_signature {
-	int type;
+#define UBUS_METHOD(_name, _handler, _policy)		\
+	{						\
+		.name = _name,				\
+		.handler = _handler,			\
+		.policy = _policy,			\
+		.n_policy = ARRAY_SIZE(_policy)		\
+	}
+
+struct ubus_method {
 	const char *name;
+	ubus_handler_t handler;
+
+	const struct blobmsg_policy *policy;
+	int n_policy;
 };
 
 struct ubus_object_type {
 	const char *name;
 	uint32_t id;
-	int n_signature;
-	const struct ubus_signature *signature;
-};
 
-struct ubus_method {
-	const char *name;
-	ubus_handler_t handler;
+	const struct ubus_method *methods;
+	int n_methods;
 };
 
 struct ubus_object {

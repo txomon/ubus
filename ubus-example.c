@@ -5,18 +5,6 @@
 static struct ubus_context *ctx;
 struct blob_buf b;
 
-static const struct ubus_signature test_object_sig[] = {
-	UBUS_METHOD_START("hello"),
-	  UBUS_TABLE_START(NULL),
-	    UBUS_FIELD(INT32, "id"),
-	    UBUS_FIELD(STRING, "msg"),
-	  UBUS_TABLE_END(),
-	UBUS_METHOD_END(),
-};
-
-static struct ubus_object_type test_object_type =
-	UBUS_OBJECT_TYPE("test", test_object_sig);
-
 enum {
 	HELLO_ID,
 	HELLO_MSG,
@@ -50,8 +38,11 @@ static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 static const struct ubus_method test_methods[] = {
-	{ .name = "hello", .handler = test_hello },
+	UBUS_METHOD("hello", test_hello, hello_policy),
 };
+
+static struct ubus_object_type test_object_type =
+	UBUS_OBJECT_TYPE("test", test_methods);
 
 static struct ubus_object test_object = {
 	.name = "test",
