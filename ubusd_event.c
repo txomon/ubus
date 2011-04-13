@@ -46,7 +46,7 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 	struct event_source *ev;
 	struct ubus_object *obj;
 	struct blob_attr *attr[EVREG_LAST];
-	char *pattern;
+	char *pattern, *name;
 	uint32_t id;
 	bool partial = false;
 	int len;
@@ -82,8 +82,9 @@ static int ubusd_alloc_event_pattern(struct ubus_client *cl, struct blob_attr *m
 	list_add(&ev->list, &obj->events);
 	ev->obj = obj;
 	ev->partial = partial;
-	ev->avl.key = (void *) (ev + 1);
-	strcpy(ev->avl.key, pattern);
+	name = (char *) (ev + 1);
+	strcpy(name, pattern);
+	ev->avl.key = name;
 	avl_insert(&patterns, &ev->avl);
 
 	return 0;

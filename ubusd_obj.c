@@ -135,7 +135,7 @@ struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr
 			goto free;
 
 		if (avl_insert(&path, &obj->path) != 0) {
-			free(obj->path.key);
+			free((void *) obj->path.key);
 			obj->path.key = NULL;
 			goto free;
 		}
@@ -158,7 +158,7 @@ void ubusd_free_object(struct ubus_object *obj)
 	if (obj->path.key) {
 		ubusd_send_obj_event(obj, false);
 		avl_delete(&path, &obj->path);
-		free(obj->path.key);
+		free((void *) obj->path.key);
 	}
 	if (!list_empty(&obj->list))
 		list_del(&obj->list);
