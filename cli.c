@@ -59,7 +59,7 @@ static void receive_list_result(struct ubus_context *ctx, struct ubus_object_dat
 		return;
 
 	blob_for_each_attr(cur, obj->signature, rem) {
-		s = blobmsg_format_json_with_cb(cur, false, format_type, NULL);
+		s = blobmsg_format_json_with_cb(cur, false, format_type, NULL, -1);
 		printf("\t%s\n", s);
 		free(s);
 	}
@@ -71,7 +71,7 @@ static void receive_call_result_data(struct ubus_request *req, int type, struct 
 	if (!msg)
 		return;
 
-	str = blobmsg_format_json(msg, true);
+	str = blobmsg_format_json_indent(msg, true, 0);
 	printf("%s\n", str);
 	free(str);
 }
