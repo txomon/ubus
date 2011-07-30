@@ -73,11 +73,9 @@ static struct ubus_object test_object2 = {
 
 int main(int argc, char **argv)
 {
-	const char *progname, *ubus_socket = NULL;
+	const char *ubus_socket = NULL;
 	int ret = 0;
 	int ch;
-
-	progname = argv[0];
 
 	while ((ch = getopt(argc, argv, "s:")) != -1) {
 		switch (ch) {
