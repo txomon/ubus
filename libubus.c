@@ -36,6 +36,7 @@ const char *__ubus_strerror[__UBUS_STATUS_LAST] = {
 	[UBUS_STATUS_PERMISSION_DENIED] = "Permission denied",
 	[UBUS_STATUS_TIMEOUT] = "Request timed out",
 	[UBUS_STATUS_NOT_SUPPORTED] = "Operation not supported",
+	[UBUS_STATUS_UNKNOWN_ERROR] = "Unknown error",
 };
 
 static struct blob_buf b;
