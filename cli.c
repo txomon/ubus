@@ -19,6 +19,7 @@
 static struct blob_buf b;
 static int timeout = 30;
 static bool simple_output = false;
+static int verbose = 0;
 
 static const char *format_type(void *priv, struct blob_attr *attr)
 {
@@ -48,7 +49,7 @@ static void receive_list_result(struct ubus_context *ctx, struct ubus_object_dat
 	char *s;
 	int rem;
 
-	if (simple_output) {
+	if (simple_output || !verbose) {
 		printf("%s\n", obj->path);
 		return;
 	}
@@ -189,6 +190,7 @@ static int usage(const char *prog)
 		" -s <socket>:		Set the unix domain socket to connect to\n"
 		" -t <timeout>:		Set the timeout (in seconds) for a command to complete\n"
 		" -S:			Use simplified output (for scripts)\n"
+		" -v:			More verbose output\n"
 		"\n"
 		"Commands:\n"
 		" - list [<path>]			List objects\n"
@@ -220,7 +222,7 @@ int main(int argc, char **argv)
 
 	progname = argv[0];
 
-	while ((ch = getopt(argc, argv, "s:t:S")) != -1) {
+	while ((ch = getopt(argc, argv, "vs:t:S")) != -1) {
 		switch (ch) {
 		case 's':
 			ubus_socket = optarg;
@@ -230,6 +232,9 @@ int main(int argc, char **argv)
 			break;
 		case 'S':
 			simple_output = true;
+			break;
+		case 'v':
+			verbose++;
 			break;
 		default:
 			return usage(progname);
