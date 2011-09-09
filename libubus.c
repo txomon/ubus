@@ -16,6 +16,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <poll.h>
 
 #include <libubox/blob.h>
 #include <libubox/blobmsg.h>
@@ -88,6 +89,14 @@ out:
 	return err;
 }
 
+static void wait_data(int fd, bool write)
+{
+	struct pollfd pfd = { .fd = fd };
+
+	pfd.events = write ? POLLOUT : POLLIN;
+	poll(&pfd, 1, 0);
+}
+
 static int writev_retry(int fd, struct iovec *iov, int iov_len)
 {
 	int len = 0;
@@ -97,9 +106,7 @@ static int writev_retry(int fd, struct iovec *iov, int iov_len)
 		if (cur_len < 0) {
 			switch(errno) {
 			case EAGAIN:
-				/* turn off non-blocking mode */
-				fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) &
-				      ~O_NONBLOCK);
+				wait_data(fd, true);
 				break;
 			case EINTR:
 				break;
@@ -165,6 +172,9 @@ static bool recv_retry(int fd, struct iovec *iov, bool wait)
 	int bytes;
 
 	while (iov->iov_len > 0) {
+		if (wait)
+			wait_data(fd, false);
+
 		bytes = read(fd, iov->iov_base, iov->iov_len);
 		if (bytes < 0) {
 			bytes = 0;
@@ -859,6 +869,8 @@ struct ubus_context *ubus_connect(const char *path)
 
 	if (!ctx->local_id)
 		goto error_close;
+
+	fcntl(ctx->sock.fd, F_SETFL, fcntl(ctx->sock.fd, F_GETFL) | O_NONBLOCK);
 
 	return ctx;
 
