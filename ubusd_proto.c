@@ -207,6 +207,7 @@ static int ubusd_handle_lookup(struct ubus_client *cl, struct ubus_msg_buf *ub, 
 
 static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
+	struct ubus_msg_buf *ub_new;
 	struct ubus_object *obj = NULL;
 	struct ubus_id *id;
 	const char *method;
@@ -232,9 +233,10 @@ static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub, 
 		blob_put(&b, UBUS_ATTR_DATA, blob_data(attr[UBUS_ATTR_DATA]),
 			 blob_len(attr[UBUS_ATTR_DATA]));
 
+	ub_new = ubus_reply_from_blob(ub, true);
 	ubus_msg_free(ub);
+	ub = ub_new;
 
-	ub = ubus_reply_from_blob(ub, true);
 	if (!ub)
 		return UBUS_STATUS_NO_DATA;
 
