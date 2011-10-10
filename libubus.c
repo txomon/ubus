@@ -342,6 +342,8 @@ static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hd
 	int method;
 	int ret = 0;
 
+	req.peer = hdr->peer;
+	req.seq = hdr->seq;
 	ubus_parse_msg(hdr->data);
 
 	if (!attrbuf[UBUS_ATTR_OBJID])
@@ -372,8 +374,6 @@ static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hd
 
 found:
 	req.object = objid;
-	req.peer = hdr->peer;
-	req.seq = hdr->seq;
 	ret = obj->methods[method].handler(ctx, obj, &req,
 					   blob_data(attrbuf[UBUS_ATTR_METHOD]),
 					   attrbuf[UBUS_ATTR_DATA]);
@@ -382,7 +382,7 @@ send:
 	blob_buf_init(&b, 0);
 	blob_put_int32(&b, UBUS_ATTR_STATUS, ret);
 	blob_put_int32(&b, UBUS_ATTR_OBJID, objid);
-	ubus_send_msg(ctx, hdr->seq, b.head, UBUS_MSG_STATUS, hdr->peer);
+	ubus_send_msg(ctx, req.seq, b.head, UBUS_MSG_STATUS, req.peer);
 }
 
 static void ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
