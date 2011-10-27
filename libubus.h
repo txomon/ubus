@@ -93,11 +93,13 @@ struct ubus_event_handler {
 struct ubus_context {
 	struct list_head requests;
 	struct avl_tree objects;
+	struct list_head pending;
 
 	struct uloop_fd sock;
 
 	uint32_t local_id;
 	uint32_t request_seq;
+	int stack_depth;
 
 	void (*connection_lost)(struct ubus_context *ctx);
 

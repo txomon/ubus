@@ -56,6 +56,13 @@ struct ubus_pending_data {
 	struct blob_attr data[];
 };
 
+struct ubus_pending_invoke {
+	struct list_head list;
+	struct ubus_msghdr hdr;
+};
+
+static void ubus_process_pending_invoke(struct ubus_context *ctx);
+
 static int ubus_cmp_id(const void *k1, const void *k2, void *ptr)
 {
 	const uint32_t *id1 = k1, *id2 = k2;
@@ -387,6 +394,7 @@ send:
 
 static void ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 {
+	struct ubus_pending_invoke *pending;
 	struct ubus_request *req;
 
 	switch(hdr->type) {
@@ -405,8 +413,33 @@ static void ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 		break;
 
 	case UBUS_MSG_INVOKE:
-		ubus_process_invoke(ctx, hdr);
+		if (ctx->stack_depth > 2) {
+			pending = calloc(1, sizeof(*pending) +
+				blob_raw_len(hdr->data));
+
+			if (!pending)
+				return;
+
+			memcpy(&pending->hdr, hdr, sizeof(*hdr) +
+				blob_raw_len(hdr->data));
+			list_add(&pending->list, &ctx->pending);
+		} else {
+			ubus_process_invoke(ctx, hdr);
+		}
 		break;
+	}
+}
+
+static void ubus_process_pending_invoke(struct ubus_context *ctx)
+{
+	struct ubus_pending_invoke *pending, *tmp;
+
+	list_for_each_entry_safe(pending, tmp, &ctx->pending, list) {
+		list_del(&pending->list);
+		ubus_process_msg(ctx, &pending->hdr);
+		free(pending);
+		if (ctx->stack_depth > 2)
+			break;
 	}
 }
 
@@ -486,12 +519,14 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req,
 	ubus_complete_request_async(ctx, req);
 	req->complete_cb = ubus_sync_req_cb;
 
+	ctx->stack_depth++;
 	while (!req->status_msg) {
 		bool cancelled = uloop_cancelled;
 		uloop_cancelled = false;
 		uloop_run();
 		uloop_cancelled = cancelled;
 	}
+	ctx->stack_depth--;
 
 	if (timeout)
 		uloop_timeout_cancel(&cb.timeout);
@@ -505,6 +540,9 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req,
 
 	if (!registered)
 		uloop_fd_delete(&ctx->sock);
+
+	if (!ctx->stack_depth)
+		ubus_process_pending_invoke(ctx);
 
 	return status;
 }
@@ -868,6 +906,7 @@ struct ubus_context *ubus_connect(const char *path)
 	ctx->connection_lost = ubus_default_connection_lost;
 
 	INIT_LIST_HEAD(&ctx->requests);
+	INIT_LIST_HEAD(&ctx->pending);
 	avl_init(&ctx->objects, ubus_cmp_id, false, NULL);
 
 	if (!ctx->local_id)
