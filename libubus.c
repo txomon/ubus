@@ -282,7 +282,7 @@ static int ubus_process_req_status(struct ubus_request *req, struct ubus_msghdr 
 	int ret = UBUS_STATUS_INVALID_ARGUMENT;
 
 	if (!list_empty(&req->list))
-		list_del(&req->list);
+		list_del_init(&req->list);
 
 	ubus_get_status(hdr, &ret);
 	req->peer = hdr->peer;
@@ -417,7 +417,7 @@ void ubus_abort_request(struct ubus_context *ctx, struct ubus_request *req)
 
 	req->cancelled = true;
 	ubus_process_req_data(req);
-	list_del(&req->list);
+	list_del_init(&req->list);
 }
 
 void ubus_complete_request_async(struct ubus_context *ctx, struct ubus_request *req)
@@ -469,7 +469,6 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req,
 	struct ubus_sync_req_cb cb;
 	ubus_complete_handler_t complete_cb = req->complete_cb;
 	bool registered = ctx->sock.registered;
-	bool cancelled = uloop_cancelled;
 	int status = UBUS_STATUS_NO_DATA;
 
 	if (!registered) {
@@ -487,7 +486,12 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req,
 	ubus_complete_request_async(ctx, req);
 	req->complete_cb = ubus_sync_req_cb;
 
-	uloop_run();
+	while (!req->status_msg) {
+		bool cancelled = uloop_cancelled;
+		uloop_cancelled = false;
+		uloop_run();
+		uloop_cancelled = cancelled;
+	}
 
 	if (timeout)
 		uloop_timeout_cancel(&cb.timeout);
@@ -499,7 +503,6 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req,
 	if (req->complete_cb)
 		req->complete_cb(req, status);
 
-	uloop_cancelled = cancelled;
 	if (!registered)
 		uloop_fd_delete(&ctx->sock);
 
