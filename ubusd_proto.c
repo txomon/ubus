@@ -163,7 +163,6 @@ static int ubusd_handle_lookup(struct ubus_client *cl, struct ubus_msg_buf *ub, 
 {
 	struct ubus_object *obj;
 	char *objpath;
-	bool wildcard = false;
 	bool found = false;
 	int len;
 
@@ -185,7 +184,6 @@ static int ubusd_handle_lookup(struct ubus_client *cl, struct ubus_msg_buf *ub, 
 	}
 
 	objpath[--len] = 0;
-	wildcard = true;
 
 	obj = avl_find_ge_element(&path, objpath, obj, path);
 	if (!obj)
