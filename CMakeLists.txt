@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 2.6)
 PROJECT(ubus C)
 ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -g3)
 
+OPTION(BUILD_LUA "build Lua plugin" ON)
+
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 
 IF(APPLE)
@@ -24,6 +26,8 @@ ADD_EXECUTABLE(ubus-example ubus-example.c)
 TARGET_LINK_LIBRARIES(ubus-example ubus ubox)
 
 SET(CMAKE_INSTALL_PREFIX /usr)
+
+ADD_SUBDIRECTORY(lua)
 
 INSTALL(TARGETS ubus cli
 	LIBRARY DESTINATION lib
