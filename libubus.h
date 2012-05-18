@@ -150,7 +150,7 @@ const char *ubus_strerror(int error);
 
 static inline void ubus_add_uloop(struct ubus_context *ctx)
 {
-	uloop_fd_add(&ctx->sock, ULOOP_EDGE_TRIGGER | ULOOP_BLOCKING | ULOOP_READ);
+	uloop_fd_add(&ctx->sock, ULOOP_BLOCKING | ULOOP_READ);
 }
 
 /* call this for read events on ctx->sock.fd when not using uloop */
