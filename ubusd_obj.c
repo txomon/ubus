@@ -112,6 +112,8 @@ struct ubus_object *ubusd_create_object_internal(struct ubus_object_type *type, 
 	obj->type = type;
 	INIT_LIST_HEAD(&obj->list);
 	INIT_LIST_HEAD(&obj->events);
+	INIT_LIST_HEAD(&obj->watchers);
+	INIT_LIST_HEAD(&obj->watched);
 	if (type)
 		type->refcount++;
 
@@ -162,8 +164,39 @@ free:
 	return NULL;
 }
 
+void ubus_watch_new(struct ubus_object *obj, struct ubus_object *target, const char *method)
+{
+	struct ubus_watch *w;
+
+	w = calloc(1, sizeof(*w) + strlen(method) + 1);
+	if (!w)
+		return;
+
+	w->watcher = obj;
+	w->watched = target;
+	list_add(&w->watcher_list, &target->watchers);
+	list_add(&w->watched_list, &obj->watched);
+	strcpy(w->method, method);
+}
+
+void ubus_watch_free(struct ubus_watch *w)
+{
+	list_del(&w->watcher_list);
+	list_del(&w->watched_list);
+	free(w);
+}
+
 void ubusd_free_object(struct ubus_object *obj)
 {
+	struct ubus_watch *w, *tmp;
+
+	list_for_each_entry_safe(w, tmp, &obj->watched, watched_list) {
+		ubus_watch_free(w);
+	}
+	list_for_each_entry_safe(w, tmp, &obj->watchers, watcher_list) {
+		ubus_proto_notify_watch(w);
+	}
+
 	ubusd_event_cleanup_object(obj);
 	if (obj->path.key) {
 		ubusd_send_obj_event(obj, false);

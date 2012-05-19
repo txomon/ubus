@@ -54,6 +54,10 @@ enum ubus_msg_type {
 	UBUS_MSG_ADD_OBJECT,
 	UBUS_MSG_REMOVE_OBJECT,
 
+	/* watch an object, notify on remove */
+	UBUS_MSG_ADD_WATCH,
+	UBUS_MSG_REMOVE_WATCH,
+
 	/* must be last */
 	__UBUS_MSG_LAST,
 };
@@ -71,6 +75,7 @@ enum ubus_msg_attr {
 	UBUS_ATTR_SIGNATURE,
 
 	UBUS_ATTR_DATA,
+	UBUS_ATTR_TARGET,
 
 	/* must be last */
 	UBUS_ATTR_MAX,

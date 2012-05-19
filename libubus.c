@@ -709,7 +709,7 @@ static bool ubus_push_object_type(const struct ubus_object_type *type)
 	return true;
 }
 
-static int __ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj)
+int ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj)
 {
 	struct ubus_request req;
 	int ret;
@@ -738,14 +738,6 @@ static int __ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj)
 		return UBUS_STATUS_NO_DATA;
 
 	return 0;
-}
-
-int ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj)
-{
-	if (!obj->name || !obj->type)
-		return UBUS_STATUS_INVALID_ARGUMENT;
-
-	return __ubus_add_object(ctx, obj);
 }
 
 static void ubus_remove_object_cb(struct ubus_request *req, int type, struct blob_attr *msg)
@@ -819,7 +811,7 @@ int ubus_register_event_handler(struct ubus_context *ctx,
 		if (!!obj->name ^ !!obj->type)
 			return UBUS_STATUS_INVALID_ARGUMENT;
 
-		ret = __ubus_add_object(ctx, obj);
+		ret = ubus_add_object(ctx, obj);
 		if (ret)
 			return ret;
 	}
@@ -833,6 +825,81 @@ int ubus_register_event_handler(struct ubus_context *ctx,
 
 	return ubus_invoke(ctx, UBUS_SYSTEM_OBJECT_EVENT, "register", b2.head,
 			  NULL, NULL, 0);
+}
+
+enum {
+	WATCH_ID,
+	WATCH_NOTIFY,
+	__WATCH_MAX
+};
+
+static const struct blobmsg_policy watch_policy[] = {
+	[WATCH_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
+	[WATCH_NOTIFY] = { .name = "notify", .type = BLOBMSG_TYPE_STRING },
+};
+
+
+static int ubus_watch_cb(struct ubus_context *ctx, struct ubus_object *obj,
+			 struct ubus_request_data *req,
+			 const char *method, struct blob_attr *msg)
+{
+	struct ubus_watch_object *w;
+	struct blob_attr *tb[__WATCH_MAX];
+
+	blobmsg_parse(watch_policy, ARRAY_SIZE(watch_policy), tb, blob_data(msg), blob_len(msg));
+
+	if (!tb[WATCH_ID] || !tb[WATCH_NOTIFY])
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	if (req->peer)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	w = container_of(obj, struct ubus_watch_object, obj);
+	w->cb(ctx, w, blobmsg_get_u32(tb[WATCH_ID]));
+	return 0;
+}
+
+static const struct ubus_method watch_method = {
+	.name = NULL,
+	.handler = ubus_watch_cb,
+};
+
+int ubus_register_watch_object(struct ubus_context *ctx, struct ubus_watch_object *w_obj)
+{
+	struct ubus_object *obj = &w_obj->obj;
+
+	obj->methods = &watch_method;
+	obj->n_methods = 1;
+
+	return ubus_add_object(ctx, obj);
+}
+
+static int
+__ubus_watch_request(struct ubus_context *ctx, struct ubus_object *obj, uint32_t id, const char *method, int type)
+{
+	struct ubus_request req;
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id);
+	blob_put_int32(&b, UBUS_ATTR_TARGET, id);
+	if (method)
+		blob_put_string(&b, UBUS_ATTR_METHOD, method);
+
+	if (ubus_start_request(ctx, &req, b.head, type, 0) < 0)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	return ubus_complete_request(ctx, &req, 0);
+
+}
+
+int ubus_watch_object_add(struct ubus_context *ctx, struct ubus_watch_object *obj, uint32_t id)
+{
+	return __ubus_watch_request(ctx, &obj->obj, id, "event", UBUS_MSG_ADD_WATCH);
+}
+
+int ubus_watch_object_remove(struct ubus_context *ctx, struct ubus_watch_object *obj, uint32_t id)
+{
+	return __ubus_watch_request(ctx, &obj->obj, id, NULL, UBUS_MSG_REMOVE_WATCH);
 }
 
 int ubus_send_event(struct ubus_context *ctx, const char *id,

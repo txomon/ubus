@@ -35,11 +35,19 @@ struct ubus_method {
 	struct blob_attr data[];
 };
 
+struct ubus_watch {
+	struct list_head watcher_list, watched_list;
+	struct ubus_object *watcher, *watched;
+	char method[];
+};
+
 struct ubus_object {
 	struct ubus_id id;
 	struct list_head list;
 
 	struct list_head events;
+
+	struct list_head watchers, watched;
 
 	struct ubus_object_type *type;
 	struct avl_node path;
@@ -48,6 +56,7 @@ struct ubus_object {
 	int (*recv_msg)(struct ubus_client *client, const char *method, struct blob_attr *msg);
 
 	int event_seen;
+	unsigned int invoke_seq;
 };
 
 struct ubus_object *ubusd_create_object(struct ubus_client *cl, struct blob_attr **attr);
@@ -66,5 +75,9 @@ static inline struct ubus_object *ubusd_find_object(uint32_t objid)
 	obj = container_of(id, struct ubus_object, id);
 	return obj;
 }
+
+void ubus_watch_new(struct ubus_object *obj, struct ubus_object *target, const char *method);
+void ubus_watch_free(struct ubus_watch *w);
+void ubus_proto_notify_watch(struct ubus_watch *w);
 
 #endif

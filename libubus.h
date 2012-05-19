@@ -26,6 +26,7 @@ struct ubus_request;
 struct ubus_request_data;
 struct ubus_object_data;
 struct ubus_event_handler;
+struct ubus_watch_object;
 
 typedef void (*ubus_lookup_handler_t)(struct ubus_context *ctx,
 				      struct ubus_object_data *obj,
@@ -35,6 +36,8 @@ typedef int (*ubus_handler_t)(struct ubus_context *ctx, struct ubus_object *obj,
 			      const char *method, struct blob_attr *msg);
 typedef void (*ubus_event_handler_t)(struct ubus_context *ctx, struct ubus_event_handler *ev,
 				     const char *type, struct blob_attr *msg);
+typedef void (*ubus_watch_handler_t)(struct ubus_context *ctx, struct ubus_watch_object *w,
+				     uint32_t id);
 typedef void (*ubus_data_handler_t)(struct ubus_request *req,
 				    int type, struct blob_attr *msg);
 typedef void (*ubus_complete_handler_t)(struct ubus_request *req, int ret);
@@ -82,6 +85,12 @@ struct ubus_object {
 
 	const struct ubus_method *methods;
 	int n_methods;
+};
+
+struct ubus_watch_object {
+	struct ubus_object obj;
+
+	ubus_watch_handler_t cb;
 };
 
 struct ubus_event_handler {
@@ -184,6 +193,13 @@ int ubus_add_object(struct ubus_context *ctx, struct ubus_object *obj);
 
 /* remove the object from the ubus connection */
 int ubus_remove_object(struct ubus_context *ctx, struct ubus_object *obj);
+
+/* add an object for watching other object state changes */
+int ubus_register_watch_object(struct ubus_context *ctx, struct ubus_watch_object *obj);
+
+int ubus_watch_object_add(struct ubus_context *ctx, struct ubus_watch_object *obj, uint32_t id);
+
+int ubus_watch_object_remove(struct ubus_context *ctx, struct ubus_watch_object *obj, uint32_t id);
 
 /* ----------- rpc ----------- */
 
