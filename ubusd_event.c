@@ -134,7 +134,7 @@ static void ubusd_send_event_msg(struct ubus_msg_buf **ub, struct ubus_client *c
 	ubus_msg_send(obj->client, *ub, false);
 }
 
-bool strmatch_len(const char *s1, const char *s2, int *len)
+static bool strmatch_len(const char *s1, const char *s2, int *len)
 {
 	for (*len = 0; s1[*len] == s2[*len]; (*len)++)
 		if (!s1[*len])

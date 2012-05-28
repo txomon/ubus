@@ -60,7 +60,7 @@ static const struct blobmsg_policy watch_policy[__WATCH_MAX] = {
 	[WATCH_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
 };
 
-void test_handle_event(struct ubus_context *ctx, struct ubus_watch_object *w,
+static void test_handle_event(struct ubus_context *ctx, struct ubus_watch_object *w,
                        uint32_t id)
 {
 	fprintf(stderr, "Object %08x went away\n", id);
