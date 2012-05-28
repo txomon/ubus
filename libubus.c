@@ -38,6 +38,7 @@ const char *__ubus_strerror[__UBUS_STATUS_LAST] = {
 	[UBUS_STATUS_TIMEOUT] = "Request timed out",
 	[UBUS_STATUS_NOT_SUPPORTED] = "Operation not supported",
 	[UBUS_STATUS_UNKNOWN_ERROR] = "Unknown error",
+	[UBUS_STATUS_CONNECTION_FAILED] = "Connection failed",
 };
 
 static struct blob_buf b;
@@ -922,6 +923,81 @@ int ubus_send_event(struct ubus_context *ctx, const char *id,
 	return ubus_complete_request(ctx, &req, 0);
 }
 
+static void
+ubus_refresh_state(struct ubus_context *ctx)
+{
+	struct ubus_object *obj, *tmp;
+
+	/* clear all type IDs, they need to be registered again */
+	avl_for_each_element(&ctx->objects, obj, avl)
+		obj->type->id = 0;
+
+	/* push out all objects again */
+	avl_for_each_element_safe(&ctx->objects, obj, avl, tmp) {
+		obj->id = 0;
+		avl_delete(&ctx->objects, &obj->avl);
+		ubus_add_object(ctx, obj);
+	}
+}
+
+int ubus_reconnect(struct ubus_context *ctx, const char *path)
+{
+	struct {
+		struct ubus_msghdr hdr;
+		struct blob_attr data;
+	} hdr;
+	struct blob_attr *buf;
+	int ret = UBUS_STATUS_UNKNOWN_ERROR;
+
+	if (!path)
+		path = UBUS_UNIX_SOCKET;
+
+	if (ctx->sock.fd >= 0) {
+		if (ctx->sock.registered)
+			uloop_fd_delete(&ctx->sock);
+
+		close(ctx->sock.fd);
+	}
+
+	ctx->sock.fd = usock(USOCK_UNIX, path, NULL);
+	if (ctx->sock.fd < 0)
+		return UBUS_STATUS_CONNECTION_FAILED;
+
+	if (read(ctx->sock.fd, &hdr, sizeof(hdr)) != sizeof(hdr))
+		goto out_close;
+
+	if (!ubus_validate_hdr(&hdr.hdr))
+		goto out_close;
+
+	if (hdr.hdr.type != UBUS_MSG_HELLO)
+		goto out_close;
+
+	buf = calloc(1, blob_raw_len(&hdr.data));
+	if (!buf)
+		goto out_close;
+
+	memcpy(buf, &hdr.data, sizeof(hdr.data));
+	if (read(ctx->sock.fd, blob_data(buf), blob_len(buf)) != blob_len(buf))
+		goto out_free;
+
+	ctx->local_id = hdr.hdr.peer;
+	if (!ctx->local_id)
+		goto out_free;
+
+	ret = UBUS_STATUS_OK;
+	fcntl(ctx->sock.fd, F_SETFL, fcntl(ctx->sock.fd, F_GETFL) | O_NONBLOCK);
+
+	ubus_refresh_state(ctx);
+
+out_free:
+	free(buf);
+out_close:
+	if (ret)
+		close(ctx->sock.fd);
+
+	return ret;
+}
+
 static void ubus_default_connection_lost(struct ubus_context *ctx)
 {
 	if (ctx->sock.registered)
@@ -931,66 +1007,24 @@ static void ubus_default_connection_lost(struct ubus_context *ctx)
 struct ubus_context *ubus_connect(const char *path)
 {
 	struct ubus_context *ctx;
-	struct {
-		struct ubus_msghdr hdr;
-		struct blob_attr data;
-	} hdr;
-	struct blob_attr *buf;
-
-	if (!path)
-		path = UBUS_UNIX_SOCKET;
 
 	ctx = calloc(1, sizeof(*ctx));
 	if (!ctx)
-		goto error;
+		return NULL;
 
-	ctx->sock.fd = usock(USOCK_UNIX, path, NULL);
-	if (ctx->sock.fd < 0)
-		goto error_free;
-
+	ctx->sock.fd = -1;
 	ctx->sock.cb = ubus_handle_data;
-
-	if (read(ctx->sock.fd, &hdr, sizeof(hdr)) != sizeof(hdr))
-		goto error_close;
-
-	if (!ubus_validate_hdr(&hdr.hdr))
-		goto error_close;
-
-	if (hdr.hdr.type != UBUS_MSG_HELLO)
-		goto error_close;
-
-	buf = calloc(1, blob_raw_len(&hdr.data));
-	if (!buf)
-		goto error_close;
-
-	memcpy(buf, &hdr.data, sizeof(hdr.data));
-	if (read(ctx->sock.fd, blob_data(buf), blob_len(buf)) != blob_len(buf))
-		goto error_free_buf;
-
-	ctx->local_id = hdr.hdr.peer;
-	free(buf);
-
 	ctx->connection_lost = ubus_default_connection_lost;
 
 	INIT_LIST_HEAD(&ctx->requests);
 	INIT_LIST_HEAD(&ctx->pending);
 	avl_init(&ctx->objects, ubus_cmp_id, false, NULL);
-
-	if (!ctx->local_id)
-		goto error_close;
-
-	fcntl(ctx->sock.fd, F_SETFL, fcntl(ctx->sock.fd, F_GETFL) | O_NONBLOCK);
+	if (ubus_reconnect(ctx, path)) {
+		free(ctx);
+		ctx = NULL;
+	}
 
 	return ctx;
-
-error_free_buf:
-	free(buf);
-error_close:
-	close(ctx->sock.fd);
-error_free:
-	free(ctx);
-error:
-	return NULL;
 }
 
 void ubus_free(struct ubus_context *ctx)

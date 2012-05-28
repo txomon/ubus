@@ -153,6 +153,7 @@ struct ubus_request {
 
 
 struct ubus_context *ubus_connect(const char *path);
+int ubus_reconnect(struct ubus_context *ctx, const char *path);
 void ubus_free(struct ubus_context *ctx);
 
 const char *ubus_strerror(int error);
