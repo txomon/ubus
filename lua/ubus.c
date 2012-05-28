@@ -373,6 +373,8 @@ static const luaL_Reg ubus[] = {
 	{ NULL, NULL },
 };
 
+/* avoid missing prototype warning */
+int luaopen_ubus(lua_State *L);
 
 int
 luaopen_ubus(lua_State *L)
