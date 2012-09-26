@@ -124,7 +124,11 @@ ubus_lua_format_blob_is_array(lua_State *L)
 	/* Find out whether table is array-like */
 	for (lua_pushnil(L); lua_next(L, -2); lua_pop(L, 1))
 	{
+#ifdef LUA_TINT
 		if (lua_type(L, -2) != LUA_TNUMBER && lua_type(L, -2) != LUA_TINT)
+#else
+		if (lua_type(L, -2) != LUA_TNUMBER)
+#endif
 		{
 			lua_pop(L, 1);
 			return false;
@@ -160,7 +164,9 @@ ubus_lua_format_blob(lua_State *L, struct blob_buf *b, bool table)
 		blobmsg_add_u8(b, key, (uint8_t)lua_toboolean(L, -1));
 		break;
 
+#ifdef LUA_TINT
 	case LUA_TINT:
+#endif
 	case LUA_TNUMBER:
 		blobmsg_add_u32(b, key, (uint32_t)lua_tointeger(L, -1));
 		break;
