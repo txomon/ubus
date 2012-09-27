@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2012 Jo-Philipp Wich <jow@openwrt.org>
+ * Copyright (C) 2012 John Crispin <blogic@openwrt.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License version 2.1
@@ -14,12 +15,14 @@
 #include <unistd.h>
 #include <libubus.h>
 #include <libubox/blobmsg.h>
+#include <libubox/blobmsg_json.h>
 #include <lauxlib.h>
 
 
 #define MODNAME        "ubus"
 #define METANAME       MODNAME ".meta"
 
+static lua_State *state;
 
 struct ubus_lua_connection {
 	int timeout;
@@ -27,6 +30,10 @@ struct ubus_lua_connection {
 	struct ubus_context *ctx;
 };
 
+struct ubus_lua_object {
+	struct ubus_object o;
+	int r;
+};
 
 static int
 ubus_lua_parse_blob(lua_State *L, struct blob_attr *attr, bool table);
@@ -270,6 +277,199 @@ ubus_lua_objects(lua_State *L)
 	return 1;
 }
 
+static int
+ubus_method_handler(struct ubus_context *ctx, struct ubus_object *obj,
+		struct ubus_request_data *req, const char *method,
+		struct blob_attr *msg)
+{
+	struct ubus_lua_object *o = container_of(obj, struct ubus_lua_object, o);
+
+	lua_getglobal(state, "__ubus_cb");
+	lua_rawgeti(state, -1, o->r);
+	lua_getfield(state, -1, method);
+
+	if (lua_isfunction(state, -1)) {
+		lua_pushlightuserdata(state, req);
+		lua_call(state, 1, 0);
+	}
+	return 0;
+}
+
+static int lua_gettablelen(lua_State *L, int index)
+{
+	int cnt = 0;
+
+	lua_pushnil(L);
+	index -= 1;
+	while (lua_next(L, index) != 0) {
+		cnt++;
+		lua_pop(L, 1);
+	}
+
+	return cnt;
+}
+
+static int ubus_lua_reply(lua_State *L)
+{
+	struct ubus_lua_connection *c = luaL_checkudata(L, 1, METANAME);
+	struct ubus_request_data *req;
+
+	luaL_checktype(L, 3, LUA_TTABLE);
+	blob_buf_init(&c->buf, 0);
+
+	if (!ubus_lua_format_blob_array(L, &c->buf, true))
+	{
+		lua_pushnil(L);
+		lua_pushinteger(L, UBUS_STATUS_INVALID_ARGUMENT);
+		return 2;
+	}
+
+	req = lua_touserdata(L, 2);
+	ubus_send_reply(c->ctx, req, c->buf.head);
+
+	return 0;
+}
+
+static int ubus_lua_load_methods(lua_State *L, struct ubus_method *m)
+{
+	struct blobmsg_policy *p;
+	int plen;
+	int pidx = 0;
+
+	/* get the function pointer */
+	lua_pushinteger(L, 1);
+	lua_gettable(L, -2);
+
+	/* get the policy table */
+	lua_pushinteger(L, 2);
+	lua_gettable(L, -3);
+	plen = lua_gettablelen(L, -1);
+
+	/* check if the method table is valid */
+	if ((lua_type(L, -2) != LUA_TFUNCTION) ||
+			(lua_type(L, -1) != LUA_TTABLE) ||
+			lua_objlen(L, -1) || !plen) {
+		lua_pop(L, 2);
+		return 1;
+	}
+
+	/* store function pointer */
+	lua_pushvalue(L, -2);
+	lua_setfield(L, -6, lua_tostring(L, -5));
+
+	/* setup the policy pointers */
+	p = malloc(sizeof(struct blobmsg_policy) * plen);
+	memset(p, 0, sizeof(struct blobmsg_policy) * plen);
+	m->policy = p;
+	lua_pushnil(L);
+	while (lua_next(L, -2) != 0) {
+		int val = lua_tointeger(L, -1);
+
+		/* check if the policy is valid */
+		if ((lua_type(L, -2) != LUA_TSTRING) ||
+				(lua_type(L, -1) != LUA_TNUMBER) ||
+				(val < 0) ||
+				(val > BLOBMSG_TYPE_LAST)) {
+			lua_pop(L, 1);
+			continue;
+		}
+		p[pidx].name = lua_tostring(L, -2);
+		p[pidx].type = val;
+		lua_pop(L, 1);
+		pidx++;
+	}
+
+	m->n_policy = pidx;
+	m->name = lua_tostring(L, -4);
+	m->handler = ubus_method_handler;
+	lua_pop(L, 2);
+
+	return 0;
+}
+
+static struct ubus_object* ubus_lua_load_object(lua_State *L)
+{
+	struct ubus_lua_object *obj = NULL;
+	int mlen = lua_gettablelen(L, -1);
+	struct ubus_method *m;
+	int midx = 0;
+
+	/* setup object pointers */
+	obj = malloc(sizeof(struct ubus_lua_object));
+	memset(obj, 0, sizeof(struct ubus_lua_object));
+	obj->o.name = lua_tostring(L, -2);
+
+	/* setup method pointers */
+	m = malloc(sizeof(struct ubus_method) * mlen);
+	memset(m, 0, sizeof(struct ubus_method) * mlen);
+	obj->o.methods = m;
+
+	/* setup type pointers */
+	obj->o.type = malloc(sizeof(struct ubus_object_type));
+	memset(obj->o.type, 0, sizeof(struct ubus_object_type));
+	obj->o.type->name = lua_tostring(L, -2);
+	obj->o.type->id = 0;
+	obj->o.type->methods = obj->o.methods;
+
+	/* create the he callback lookup table */
+	lua_createtable(L, 1, 0);
+	lua_getglobal(L, "__ubus_cb");
+	lua_pushvalue(L, -2);
+	obj->r = luaL_ref(L, -2);
+	lua_pop(L, 1);
+
+	/* scan each method */
+	lua_pushnil(L);
+	while (lua_next(L, -3) != 0) {
+		/* check if it looks like a method */
+		if ((lua_type(L, -2) != LUA_TSTRING) ||
+				(lua_type(L, -1) != LUA_TTABLE) ||
+				!lua_objlen(L, -1)) {
+			lua_pop(L, 1);
+			continue;
+		}
+
+		if (!ubus_lua_load_methods(L, &m[midx]))
+			midx++;
+		lua_pop(L, 1);
+	}
+
+	obj->o.type->n_methods = obj->o.n_methods = midx;
+
+	/* pop the callback table */
+	lua_pop(L, 1);
+
+	return &obj->o;
+}
+
+static int ubus_lua_add(lua_State *L)
+{
+	struct ubus_lua_connection *c = luaL_checkudata(L, 1, METANAME);
+
+	/* verify top level object */
+	if (lua_istable(L, 1)) {
+		lua_pushstring(L, "you need to pass a table");
+		lua_error(L);
+		return 0;
+	}
+
+	/* scan each object */
+	lua_pushnil(L);
+	while (lua_next(L, -2) != 0) {
+		struct ubus_object *obj = NULL;
+
+		/* check if the object has a table of methods */
+		if ((lua_type(L, -2) == LUA_TSTRING) && (lua_type(L, -1) == LUA_TTABLE)) {
+			obj = ubus_lua_load_object(L);
+
+			if (obj)
+				ubus_add_object(c->ctx, obj);
+		}
+		lua_pop(L, 1);
+	}
+
+	return 0;
+}
 
 static void
 ubus_lua_signatures_cb(struct ubus_context *c, struct ubus_object_data *o, void *p)
@@ -317,7 +517,7 @@ ubus_lua_call_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 static int
 ubus_lua_call(lua_State *L)
 {
-	int rv;
+	int rv, top;
 	uint32_t id;
 	struct ubus_lua_connection *c = luaL_checkudata(L, 1, METANAME);
 	const char *path = luaL_checkstring(L, 2);
@@ -342,6 +542,7 @@ ubus_lua_call(lua_State *L)
 		return 2;
 	}
 
+	top = lua_gettop(L);
 	rv = ubus_invoke(c->ctx, id, func, c->buf.head, ubus_lua_call_cb, L, c->timeout * 1000);
 
 	if (rv != UBUS_STATUS_OK)
@@ -352,7 +553,7 @@ ubus_lua_call(lua_State *L)
 		return 2;
 	}
 
-	return 1;
+	return lua_gettop(L) - top;
 }
 
 
@@ -373,6 +574,8 @@ ubus_lua__gc(lua_State *L)
 static const luaL_Reg ubus[] = {
 	{ "connect", ubus_lua_connect },
 	{ "objects", ubus_lua_objects },
+	{ "add", ubus_lua_add },
+	{ "reply", ubus_lua_reply },
 	{ "signatures", ubus_lua_signatures },
 	{ "call", ubus_lua_call },
 	{ "close", ubus_lua__gc },
@@ -399,6 +602,31 @@ luaopen_ubus(lua_State *L)
 
 	/* create module */
 	luaL_register(L, MODNAME, ubus);
+
+	/* set some enum defines */
+	lua_pushinteger(L, BLOBMSG_TYPE_ARRAY);
+	lua_setfield(L, -2, "ARRAY");
+	lua_pushinteger(L, BLOBMSG_TYPE_TABLE);
+	lua_setfield(L, -2, "TABLE");
+	lua_pushinteger(L, BLOBMSG_TYPE_STRING);
+	lua_setfield(L, -2, "STRING");
+	lua_pushinteger(L, BLOBMSG_TYPE_INT64);
+	lua_setfield(L, -2, "INT64");
+	lua_pushinteger(L, BLOBMSG_TYPE_INT32);
+	lua_setfield(L, -2, "INT32");
+	lua_pushinteger(L, BLOBMSG_TYPE_INT16);
+	lua_setfield(L, -2, "INT16");
+	lua_pushinteger(L, BLOBMSG_TYPE_INT8);
+	lua_setfield(L, -2, "INT8");
+	lua_pushinteger(L, BLOBMSG_TYPE_BOOL);
+	lua_setfield(L, -2, "BOOLEAN");
+
+	/* used in our callbacks */
+	state = L;
+
+	/* create the callback table */
+	lua_createtable(L, 1, 0);
+	lua_setglobal(L, "__ubus_cb");
 
 	return 0;
 }
