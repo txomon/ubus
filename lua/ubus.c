@@ -226,6 +226,7 @@ ubus_lua_connect(lua_State *L)
 	if ((c = lua_newuserdata(L, sizeof(*c))) != NULL &&
 		(c->ctx = ubus_connect(sockpath)) != NULL)
 	{
+		ubus_add_uloop(c->ctx);
 		c->timeout = timeout;
 		memset(&c->buf, 0, sizeof(c->buf));
 		luaL_getmetatable(L, METANAME);
