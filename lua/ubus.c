@@ -290,7 +290,11 @@ ubus_method_handler(struct ubus_context *ctx, struct ubus_object *obj,
 
 	if (lua_isfunction(state, -1)) {
 		lua_pushlightuserdata(state, req);
-		lua_call(state, 1, 0);
+		if (!msg)
+			lua_pushnil(state);
+		else
+			ubus_lua_parse_blob_array(state, blob_data(msg), blob_len(msg), true);
+		lua_call(state, 2, 0);
 	}
 	return 0;
 }

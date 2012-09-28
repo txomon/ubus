@@ -20,9 +20,12 @@ local my_method = {
 	},
 	test = {
 		hello = {
-			function(req)
+			function(req, msg)
 				conn:reply(req, {message="foo"});
 				print("Call to function 'hello'")
+				for k, v in pairs(msg) do
+					print("key=" .. k .. " value=" .. tostring(v))
+				end
 			end, {id = ubus.INT32, msg = ubus.STRING }
 		},
 		hello1 = {
