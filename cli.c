@@ -27,6 +27,8 @@ static const char *format_type(void *priv, struct blob_attr *attr)
 		[BLOBMSG_TYPE_INT8] = "\"Boolean\"",
 		[BLOBMSG_TYPE_INT32] = "\"Integer\"",
 		[BLOBMSG_TYPE_STRING] = "\"String\"",
+		[BLOBMSG_TYPE_ARRAY] = "\"Array\"",
+		[BLOBMSG_TYPE_TABLE] = "\"Table\"",
 	};
 	const char *type = NULL;
 	int typeid;
