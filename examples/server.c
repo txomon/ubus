@@ -117,12 +117,6 @@ static struct ubus_object test_object = {
 	.n_methods = ARRAY_SIZE(test_methods),
 };
 
-static struct ubus_object test_client_object = {
-	.type = &test_object_type,
-	.methods = test_methods,
-	.n_methods = ARRAY_SIZE(test_methods),
-};
-
 static void server_main(void)
 {
 	int ret;
@@ -138,41 +132,15 @@ static void server_main(void)
 	uloop_run();
 }
 
-static void client_main(void)
-{
-	uint32_t id;
-	int ret;
-
-	ret = ubus_add_object(ctx, &test_client_object);
-	if (ret) {
-		fprintf(stderr, "Failed to add_object object: %s\n", ubus_strerror(ret));
-		return;
-	}
-
-	if (ubus_lookup_id(ctx, test_object.name, &id)) {
-		fprintf(stderr, "Failed to look up test object\n");
-		return;
-	}
-
-	blob_buf_init(&b, 0);
-	blobmsg_add_u32(&b, "id", test_client_object.id);
-	ubus_invoke(ctx, id, "watch", b.head, NULL, 0, 3000);
-	uloop_run();
-}
-
 int main(int argc, char **argv)
 {
 	const char *ubus_socket = NULL;
-	bool client = false;
 	int ch;
 
 	while ((ch = getopt(argc, argv, "cs:")) != -1) {
 		switch (ch) {
 		case 's':
 			ubus_socket = optarg;
-			break;
-		case 'c':
-			client = true;
 			break;
 		default:
 			break;
@@ -192,10 +160,7 @@ int main(int argc, char **argv)
 
 	ubus_add_uloop(ctx);
 
-	if (client)
-		client_main();
-	else
-		server_main();
+	server_main();
 
 	ubus_free(ctx);
 	uloop_done();
