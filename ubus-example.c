@@ -17,7 +17,7 @@
 
 static struct ubus_context *ctx;
 static struct ubus_watch_object test_event;
-struct blob_buf b;
+static struct blob_buf b;
 
 enum {
 	HELLO_ID,
@@ -30,24 +30,43 @@ static const struct blobmsg_policy hello_policy[] = {
 	[HELLO_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING },
 };
 
+struct hello_request {
+	struct ubus_request_data req;
+	struct uloop_timeout timeout;
+	char data[];
+};
+
+static void test_hello_reply(struct uloop_timeout *t)
+{
+	struct hello_request *req = container_of(t, struct hello_request, timeout);
+
+	blob_buf_init(&b, 0);
+	blobmsg_add_string(&b, "message", req->data);
+	ubus_send_reply(ctx, &req->req, b.head);
+	ubus_complete_deferred_request(ctx, &req->req, 0);
+	free(req);
+}
+
 static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
 		      struct ubus_request_data *req, const char *method,
 		      struct blob_attr *msg)
 {
+	struct hello_request *hreq;
 	struct blob_attr *tb[__HELLO_MAX];
-	char *msgstr = "(unknown)";
-	char *strbuf;
+	const char *format = "%s received a message: %s";
+	const char *msgstr = "(unknown)";
 
 	blobmsg_parse(hello_policy, ARRAY_SIZE(hello_policy), tb, blob_data(msg), blob_len(msg));
 
 	if (tb[HELLO_MSG])
 		msgstr = blobmsg_data(tb[HELLO_MSG]);
 
-	blob_buf_init(&b, 0);
-	strbuf = blobmsg_alloc_string_buffer(&b, "message", 64 + strlen(obj->name) + strlen(msgstr));
-	sprintf(strbuf, "%s received a message: %s", obj->name, msgstr);
-	blobmsg_add_string_buffer(&b);
-	ubus_send_reply(ctx, req, b.head);
+	hreq = calloc(1, sizeof(*hreq) + strlen(format) + strlen(obj->name) + strlen(msgstr) + 1);
+	sprintf(hreq->data, format, obj->name, msgstr);
+	ubus_defer_request(ctx, req, &hreq->req);
+	hreq->timeout.cb = test_hello_reply;
+	uloop_timeout_set(&hreq->timeout, 1000);
+
 	return 0;
 }
 
