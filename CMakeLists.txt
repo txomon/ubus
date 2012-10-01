@@ -22,12 +22,10 @@ ADD_EXECUTABLE(cli cli.c)
 SET_TARGET_PROPERTIES(cli PROPERTIES OUTPUT_NAME ubus)
 TARGET_LINK_LIBRARIES(cli ubus ubox blobmsg_json json)
 
-ADD_EXECUTABLE(ubus-example ubus-example.c)
-TARGET_LINK_LIBRARIES(ubus-example ubus ubox)
-
 SET(CMAKE_INSTALL_PREFIX /usr)
 
 ADD_SUBDIRECTORY(lua)
+ADD_SUBDIRECTORY(examples)
 
 INSTALL(TARGETS ubus cli
 	LIBRARY DESTINATION lib
