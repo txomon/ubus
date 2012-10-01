@@ -132,6 +132,7 @@ struct ubus_request_data {
 	uint32_t object;
 	uint32_t peer;
 	uint32_t seq;
+	bool deferred;
 };
 
 struct ubus_request {
@@ -219,6 +220,17 @@ int ubus_invoke_async(struct ubus_context *ctx, uint32_t obj, const char *method
 /* send a reply to an incoming object method call */
 int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
 		    struct blob_attr *msg);
+
+static inline void ubus_defer_request(struct ubus_context *ctx,
+				      struct ubus_request_data *req,
+				      struct ubus_request_data *new_req)
+{
+    memcpy(new_req, req, sizeof(*req));
+    req->deferred = true;
+}
+
+void ubus_complete_deferred_request(struct ubus_context *ctx,
+				    struct ubus_request_data *req, int ret);
 
 /* ----------- events ----------- */
 

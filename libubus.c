@@ -342,11 +342,18 @@ static struct ubus_request *ubus_find_request(struct ubus_context *ctx, uint32_t
 	return NULL;
 }
 
+void ubus_complete_deferred_request(struct ubus_context *ctx, struct ubus_request_data *req, int ret)
+{
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_STATUS, ret);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, req->object);
+	ubus_send_msg(ctx, req->seq, b.head, UBUS_MSG_STATUS, req->peer);
+}
+
 static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 {
 	struct ubus_request_data req;
 	struct ubus_object *obj;
-	uint32_t objid = 0;
 	int method;
 	int ret = 0;
 
@@ -357,14 +364,14 @@ static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hd
 	if (!attrbuf[UBUS_ATTR_OBJID])
 		return;
 
-	objid = blob_get_u32(attrbuf[UBUS_ATTR_OBJID]);
+	req.object = blob_get_u32(attrbuf[UBUS_ATTR_OBJID]);
 
 	if (!attrbuf[UBUS_ATTR_METHOD]) {
 		ret = UBUS_STATUS_INVALID_ARGUMENT;
 		goto send;
 	}
 
-	obj = avl_find_element(&ctx->objects, &objid, obj, avl);
+	obj = avl_find_element(&ctx->objects, &req.object, obj, avl);
 	if (!obj) {
 		ret = UBUS_STATUS_NOT_FOUND;
 		goto send;
@@ -381,16 +388,14 @@ static void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hd
 	goto send;
 
 found:
-	req.object = objid;
 	ret = obj->methods[method].handler(ctx, obj, &req,
 					   blob_data(attrbuf[UBUS_ATTR_METHOD]),
 					   attrbuf[UBUS_ATTR_DATA]);
+	if (req.deferred)
+		return;
 
 send:
-	blob_buf_init(&b, 0);
-	blob_put_int32(&b, UBUS_ATTR_STATUS, ret);
-	blob_put_int32(&b, UBUS_ATTR_OBJID, objid);
-	ubus_send_msg(ctx, req.seq, b.head, UBUS_MSG_STATUS, req.peer);
+	ubus_complete_deferred_request(ctx, &req, ret);
 }
 
 static void ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
