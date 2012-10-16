@@ -137,7 +137,7 @@ ubus_lua_format_blob_is_array(lua_State *L)
 		if (lua_type(L, -2) != LUA_TNUMBER)
 #endif
 		{
-			lua_pop(L, 1);
+			lua_pop(L, 2);
 			return false;
 		}
 
@@ -145,13 +145,14 @@ ubus_lua_format_blob_is_array(lua_State *L)
 
 		if ((cur - 1) != prv)
 		{
-			lua_pop(L, 1);
+			lua_pop(L, 2);
 			return false;
 		}
 
 		prv = cur;
 	}
 
+	lua_pop(L, 1);
 	return true;
 }
 
