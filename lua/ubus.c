@@ -152,7 +152,6 @@ ubus_lua_format_blob_is_array(lua_State *L)
 		prv = cur;
 	}
 
-	lua_pop(L, 1);
 	return true;
 }
 
