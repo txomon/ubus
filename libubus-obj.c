@@ -17,7 +17,7 @@
 void __hidden ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 {
 	struct blob_attr **attrbuf;
-	struct ubus_request_data req;
+	struct ubus_request_data req = {};
 	struct ubus_object *obj;
 	int method;
 	int ret = 0;
