@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <libubox/avl-cmp.h>
 
 #include "ubusmsg.h"
 #include "ubusd_id.h"
@@ -31,14 +32,9 @@ static int ubus_cmp_id(const void *k1, const void *k2, void *ptr)
 		return *id1 > *id2;
 }
 
-static int ubus_cmp_str(const void *k1, const void *k2, void *ptr)
-{
-	return strcmp(k1, k2);
-}
-
 void ubus_init_string_tree(struct avl_tree *tree, bool dup)
 {
-	avl_init(tree, ubus_cmp_str, dup, NULL);
+	avl_init(tree, avl_strcmp, dup, NULL);
 }
 
 void ubus_init_id_tree(struct avl_tree *tree)
