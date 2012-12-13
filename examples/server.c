@@ -16,7 +16,7 @@
 #include "libubus.h"
 
 static struct ubus_context *ctx;
-static struct ubus_watch_object test_event;
+static struct ubus_subscriber test_event;
 static struct blob_buf b;
 
 enum {
@@ -79,8 +79,9 @@ static const struct blobmsg_policy watch_policy[__WATCH_MAX] = {
 	[WATCH_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
 };
 
-static void test_handle_event(struct ubus_context *ctx, struct ubus_watch_object *w,
-                       uint32_t id)
+static void
+test_handle_remove(struct ubus_context *ctx, struct ubus_subscriber *s,
+                   uint32_t id)
 {
 	fprintf(stderr, "Object %08x went away\n", id);
 }
@@ -96,8 +97,8 @@ static int test_watch(struct ubus_context *ctx, struct ubus_object *obj,
 	if (!tb[WATCH_ID])
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	test_event.cb = test_handle_event;
-	ret = ubus_watch_object_add(ctx, &test_event, blobmsg_get_u32(tb[WATCH_ID]));
+	test_event.remove_cb = test_handle_remove;
+	ret = ubus_subscribe(ctx, &test_event, blobmsg_get_u32(tb[WATCH_ID]));
 	fprintf(stderr, "Watching object %08x: %s\n", blobmsg_get_u32(tb[WATCH_ID]), ubus_strerror(ret));
 	return ret;
 }
@@ -125,7 +126,7 @@ static void server_main(void)
 	if (ret)
 		fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
 
-	ret = ubus_register_watch_object(ctx, &test_event);
+	ret = ubus_register_subscriber(ctx, &test_event);
 	if (ret)
 		fprintf(stderr, "Failed to add watch handler: %s\n", ubus_strerror(ret));
 

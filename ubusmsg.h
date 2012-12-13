@@ -54,9 +54,13 @@ enum ubus_msg_type {
 	UBUS_MSG_ADD_OBJECT,
 	UBUS_MSG_REMOVE_OBJECT,
 
-	/* watch an object, notify on remove */
-	UBUS_MSG_ADD_WATCH,
-	UBUS_MSG_REMOVE_WATCH,
+	/*
+	 * subscribe/unsubscribe to object notifications
+	 * The unsubscribe message is sent from ubusd when
+	 * the object disappears
+	 */
+	UBUS_MSG_SUBSCRIBE,
+	UBUS_MSG_UNSUBSCRIBE,
 
 	/* must be last */
 	__UBUS_MSG_LAST,

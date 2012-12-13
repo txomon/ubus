@@ -308,14 +308,14 @@ static int ubusd_handle_add_watch(struct ubus_client *cl, struct ubus_msg_buf *u
 	if (cl == target->client)
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	ubus_watch_new(obj, target, blob_data(attr[UBUS_ATTR_METHOD]));
+	ubus_subscribe(obj, target, blob_data(attr[UBUS_ATTR_METHOD]));
 	return 0;
 }
 
 static int ubusd_handle_remove_watch(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
 {
 	struct ubus_object *obj;
-	struct ubus_watch *w;
+	struct ubus_subscription *s;
 	uint32_t id;
 
 	if (!attr[UBUS_ATTR_OBJID] || !attr[UBUS_ATTR_TARGET])
@@ -329,11 +329,11 @@ static int ubusd_handle_remove_watch(struct ubus_client *cl, struct ubus_msg_buf
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
 	id = blob_get_u32(attr[UBUS_ATTR_TARGET]);
-	list_for_each_entry(w, &obj->watched, watched_list) {
-		if (w->watched->id.id != id)
+	list_for_each_entry(s, &obj->target_list, target_list) {
+		if (s->target->id.id != id)
 			continue;
 
-		ubus_watch_free(w);
+		ubus_unsubscribe(s);
 		return 0;
 	}
 
@@ -348,8 +348,8 @@ static const ubus_cmd_cb handlers[__UBUS_MSG_LAST] = {
 	[UBUS_MSG_INVOKE] = ubusd_handle_invoke,
 	[UBUS_MSG_STATUS] = ubusd_handle_response,
 	[UBUS_MSG_DATA] = ubusd_handle_response,
-	[UBUS_MSG_ADD_WATCH] = ubusd_handle_add_watch,
-	[UBUS_MSG_REMOVE_WATCH] = ubusd_handle_remove_watch,
+	[UBUS_MSG_SUBSCRIBE] = ubusd_handle_add_watch,
+	[UBUS_MSG_UNSUBSCRIBE] = ubusd_handle_remove_watch,
 };
 
 void ubusd_proto_receive_message(struct ubus_client *cl, struct ubus_msg_buf *ub)
@@ -416,26 +416,19 @@ void ubusd_proto_free_client(struct ubus_client *cl)
 	ubus_free_id(&clients, &cl->id);
 }
 
-void ubus_proto_notify_watch(struct ubus_watch *w)
+void ubus_notify_unsubscribe(struct ubus_subscription *s)
 {
 	struct ubus_msg_buf *ub;
-	void *data;
 
 	blob_buf_init(&b, 0);
-	blob_put_int32(&b, UBUS_ATTR_OBJID, w->watcher->id.id);
-	blob_put_string(&b, UBUS_ATTR_METHOD, w->method);
-
-	data = blob_nest_start(&b, UBUS_ATTR_DATA);
-	blobmsg_add_string(&b, "notify", "remove");
-	blobmsg_add_u32(&b, "id", w->watched->id.id);
-	blobmsg_add_u32(&b, "peer", w->watched->client->id.id);
-	blob_nest_end(&b, data);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, s->subscriber->id.id);
+	blob_put_int32(&b, UBUS_ATTR_TARGET, s->target->id.id);
 
 	ub = ubus_msg_from_blob(false);
-	ubus_msg_init(ub, UBUS_MSG_INVOKE, ++w->watcher->invoke_seq, 0);
-	ubus_msg_send(w->watcher->client, ub, true);
+	ubus_msg_init(ub, UBUS_MSG_UNSUBSCRIBE, ++s->subscriber->invoke_seq, 0);
+	ubus_msg_send(s->subscriber->client, ub, true);
 
-	ubus_watch_free(w);
+	ubus_unsubscribe(s);
 }
 
 static void __init ubusd_proto_init(void)
