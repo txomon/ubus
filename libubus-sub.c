@@ -21,7 +21,8 @@ static int ubus_subscriber_cb(struct ubus_context *ctx, struct ubus_object *obj,
 	struct ubus_subscriber *s;
 
 	s = container_of(obj, struct ubus_subscriber, obj);
-	s->cb(ctx, obj, req, method, msg);
+	if (s->cb)
+		s->cb(ctx, obj, req, method, msg);
 	return 0;
 }
 
