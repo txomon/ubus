@@ -82,6 +82,30 @@ void ubus_complete_request_async(struct ubus_context *ctx, struct ubus_request *
 	list_add(&req->list, &ctx->requests);
 }
 
+static void
+ubus_req_complete_cb(struct ubus_request *req)
+{
+	ubus_complete_handler_t cb = req->complete_cb;
+
+	if (!cb)
+		return;
+
+	req->complete_cb = NULL;
+	cb(req, req->status_code);
+}
+
+static void
+ubus_set_req_status(struct ubus_request *req, int ret)
+{
+	if (!list_empty(&req->list))
+		list_del_init(&req->list);
+
+	req->status_msg = true;
+	req->status_code = ret;
+	if (!req->blocked)
+		ubus_req_complete_cb(req);
+}
+
 static void ubus_sync_req_cb(struct ubus_request *req, int ret)
 {
 	req->status_msg = true;
@@ -99,7 +123,7 @@ static void ubus_sync_req_timeout_cb(struct uloop_timeout *timeout)
 	struct ubus_sync_req_cb *cb;
 
 	cb = container_of(timeout, struct ubus_sync_req_cb, timeout);
-	ubus_sync_req_cb(cb->req, UBUS_STATUS_TIMEOUT);
+	ubus_set_req_status(cb->req, UBUS_STATUS_TIMEOUT);
 }
 
 int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req,
@@ -203,17 +227,6 @@ int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,
 	return ubus_complete_request(ctx, &req, timeout);
 }
 
-static void ubus_req_complete_cb(struct ubus_request *req)
-{
-	ubus_complete_handler_t cb = req->complete_cb;
-
-	if (!cb)
-		return;
-
-	req->complete_cb = NULL;
-	cb(req, req->status_code);
-}
-
 static bool ubus_get_status(struct ubus_msghdr *hdr, int *ret)
 {
 	struct blob_attr **attrbuf = ubus_parse_msg(hdr->data);
@@ -230,15 +243,9 @@ ubus_process_req_status(struct ubus_request *req, struct ubus_msghdr *hdr)
 {
 	int ret = UBUS_STATUS_INVALID_ARGUMENT;
 
-	if (!list_empty(&req->list))
-		list_del_init(&req->list);
-
 	ubus_get_status(hdr, &ret);
 	req->peer = hdr->peer;
-	req->status_msg = true;
-	req->status_code = ret;
-	if (!req->blocked)
-		ubus_req_complete_cb(req);
+	ubus_set_req_status(req, ret);
 
 	return ret;
 }
