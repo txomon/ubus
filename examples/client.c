@@ -27,6 +27,25 @@ static struct ubus_object test_client_object = {
 	.subscribe_cb = test_client_subscribe_cb,
 };
 
+static void test_client_notify_cb(struct uloop_timeout *timeout)
+{
+	static int counter = 0;
+	int err;
+
+	blob_buf_init(&b, 0);
+	blobmsg_add_u32(&b, "counter", counter++);
+
+	err = ubus_notify(ctx, &test_client_object, "ping", b.head, 1000);
+	if (err)
+		fprintf(stderr, "Notify failed: %s\n", ubus_strerror(err));
+
+	uloop_timeout_set(timeout, 1000);
+}
+
+static struct uloop_timeout notify_timer = {
+	.cb = test_client_notify_cb,
+};
+
 static void client_main(void)
 {
 	uint32_t id;
@@ -46,6 +65,7 @@ static void client_main(void)
 	blob_buf_init(&b, 0);
 	blobmsg_add_u32(&b, "id", test_client_object.id);
 	ubus_invoke(ctx, id, "watch", b.head, NULL, 0, 3000);
+	test_client_notify_cb(&notify_timer);
 	uloop_run();
 }
 

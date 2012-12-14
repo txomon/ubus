@@ -13,6 +13,7 @@
 
 #include <unistd.h>
 
+#include <libubox/blobmsg_json.h>
 #include "libubus.h"
 
 static struct ubus_context *ctx;
@@ -72,11 +73,13 @@ static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
 
 enum {
 	WATCH_ID,
+	WATCH_COUNTER,
 	__WATCH_MAX
 };
 
 static const struct blobmsg_policy watch_policy[__WATCH_MAX] = {
 	[WATCH_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
+	[WATCH_COUNTER] = { .name = "counter", .type = BLOBMSG_TYPE_INT32 },
 };
 
 static void
@@ -84,6 +87,20 @@ test_handle_remove(struct ubus_context *ctx, struct ubus_subscriber *s,
                    uint32_t id)
 {
 	fprintf(stderr, "Object %08x went away\n", id);
+}
+
+static int
+test_notify(struct ubus_context *ctx, struct ubus_object *obj,
+	    struct ubus_request_data *req, const char *method,
+	    struct blob_attr *msg)
+{
+	char *str;
+
+	str = blobmsg_format_json(msg, true);
+	fprintf(stderr, "Received notification '%s': %s\n", method, str);
+	free(str);
+
+	return 0;
 }
 
 static int test_watch(struct ubus_context *ctx, struct ubus_object *obj,
@@ -98,6 +115,7 @@ static int test_watch(struct ubus_context *ctx, struct ubus_object *obj,
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
 	test_event.remove_cb = test_handle_remove;
+	test_event.cb = test_notify;
 	ret = ubus_subscribe(ctx, &test_event, blobmsg_get_u32(tb[WATCH_ID]));
 	fprintf(stderr, "Watching object %08x: %s\n", blobmsg_get_u32(tb[WATCH_ID]), ubus_strerror(ret));
 	return ret;
