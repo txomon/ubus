@@ -48,6 +48,22 @@ static void __ubus_process_req_data(struct ubus_request *req)
 	}
 }
 
+int __hidden ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
+				struct blob_attr *msg, int cmd, uint32_t peer)
+{
+	memset(req, 0, sizeof(*req));
+
+	if (msg && blob_pad_len(msg) > UBUS_MAX_MSGLEN)
+		return -1;
+
+	INIT_LIST_HEAD(&req->list);
+	INIT_LIST_HEAD(&req->pending);
+	req->ctx = ctx;
+	req->peer = peer;
+	req->seq = ++ctx->request_seq;
+	return ubus_send_msg(ctx, req->seq, msg, cmd, peer);
+}
+
 void ubus_abort_request(struct ubus_context *ctx, struct ubus_request *req)
 {
 	if (!list_empty(&req->list))
