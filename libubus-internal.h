@@ -23,10 +23,9 @@ void ubus_handle_data(struct uloop_fd *u, unsigned int events);
 int ubus_send_msg(struct ubus_context *ctx, uint32_t seq,
 		  struct blob_attr *msg, int cmd, uint32_t peer);
 void ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr);
-void ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hdr);
 int __hidden ubus_start_request(struct ubus_context *ctx, struct ubus_request *req,
 				struct blob_attr *msg, int cmd, uint32_t peer);
-void ubus_process_unsubscribe(struct ubus_context *ctx, struct ubus_msghdr *hdr);
-void ubus_process_notify(struct ubus_context *ctx, struct ubus_msghdr *hdr);
+void ubus_process_obj_msg(struct ubus_context*ctx, struct ubus_msghdr *hdr);
+extern const struct ubus_method watch_method;
 
 #endif

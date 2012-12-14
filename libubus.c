@@ -214,6 +214,8 @@ void __hidden ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr
 		break;
 
 	case UBUS_MSG_INVOKE:
+	case UBUS_MSG_UNSUBSCRIBE:
+	case UBUS_MSG_NOTIFY:
 		if (ctx->stack_depth > 2) {
 			pending = calloc(1, sizeof(*pending) +
 				blob_raw_len(hdr->data));
@@ -225,16 +227,8 @@ void __hidden ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr
 				blob_raw_len(hdr->data));
 			list_add(&pending->list, &ctx->pending);
 		} else {
-			ubus_process_invoke(ctx, hdr);
+			ubus_process_obj_msg(ctx, hdr);
 		}
-		break;
-
-	case UBUS_MSG_UNSUBSCRIBE:
-		ubus_process_unsubscribe(ctx, hdr);
-		break;
-
-	case UBUS_MSG_NOTIFY:
-		ubus_process_notify(ctx, hdr);
 		break;
 	}
 }

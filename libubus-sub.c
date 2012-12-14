@@ -25,7 +25,7 @@ static int ubus_subscriber_cb(struct ubus_context *ctx, struct ubus_object *obj,
 	return 0;
 }
 
-static const struct ubus_method watch_method = {
+const struct ubus_method watch_method __hidden = {
 	.name = NULL,
 	.handler = ubus_subscriber_cb,
 };
@@ -66,45 +66,3 @@ int ubus_unsubscribe(struct ubus_context *ctx, struct ubus_subscriber *obj, uint
 	return __ubus_subscribe_request(ctx, &obj->obj, id, UBUS_MSG_UNSUBSCRIBE);
 }
 
-void __hidden ubus_process_unsubscribe(struct ubus_context *ctx, struct ubus_msghdr *hdr)
-{
-	struct ubus_subscriber *s;
-	struct blob_attr **attrbuf;
-	struct ubus_object *obj;
-	uint32_t objid;
-
-	attrbuf = ubus_parse_msg(hdr->data);
-	if (!attrbuf[UBUS_ATTR_OBJID] || !attrbuf[UBUS_ATTR_TARGET])
-		return;
-
-	objid = blob_get_u32(attrbuf[UBUS_ATTR_OBJID]);
-	obj = avl_find_element(&ctx->objects, &objid, obj, avl);
-	if (!obj)
-		return;
-
-	if (obj->methods != &watch_method)
-		return;
-
-	s = container_of(obj, struct ubus_subscriber, obj);
-	s->remove_cb(ctx, s, blob_get_u32(attrbuf[UBUS_ATTR_TARGET]));
-}
-
-void __hidden ubus_process_notify(struct ubus_context *ctx, struct ubus_msghdr *hdr)
-{
-	struct blob_attr **attrbuf;
-	struct ubus_object *obj;
-	uint32_t objid;
-
-	attrbuf = ubus_parse_msg(hdr->data);
-	if (!attrbuf[UBUS_ATTR_OBJID] || !attrbuf[UBUS_ATTR_ACTIVE])
-		return;
-
-	objid = blob_get_u32(attrbuf[UBUS_ATTR_OBJID]);
-	obj = avl_find_element(&ctx->objects, &objid, obj, avl);
-	if (!obj)
-		return;
-
-	obj->has_subscribers = blob_get_u8(attrbuf[UBUS_ATTR_ACTIVE]);
-	if (obj->subscribe_cb)
-		obj->subscribe_cb(ctx, obj);
-}

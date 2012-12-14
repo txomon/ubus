@@ -14,33 +14,54 @@
 #include "libubus.h"
 #include "libubus-internal.h"
 
-void __hidden ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hdr)
+static void
+ubus_process_unsubscribe(struct ubus_context *ctx, struct ubus_msghdr *hdr,
+			 struct ubus_object *obj, struct blob_attr **attrbuf)
 {
-	struct blob_attr **attrbuf;
-	struct ubus_request_data req = {};
-	struct ubus_object *obj;
-	int method;
-	int ret = 0;
+	struct ubus_subscriber *s;
 
-	req.peer = hdr->peer;
-	req.seq = hdr->seq;
-	attrbuf = ubus_parse_msg(hdr->data);
-
-	if (!attrbuf[UBUS_ATTR_OBJID])
+	if (!obj || !attrbuf[UBUS_ATTR_TARGET])
 		return;
 
-	req.object = blob_get_u32(attrbuf[UBUS_ATTR_OBJID]);
+	if (obj->methods != &watch_method)
+		return;
+
+	s = container_of(obj, struct ubus_subscriber, obj);
+	s->remove_cb(ctx, s, blob_get_u32(attrbuf[UBUS_ATTR_TARGET]));
+}
+
+static void
+ubus_process_notify(struct ubus_context *ctx, struct ubus_msghdr *hdr,
+		    struct ubus_object *obj, struct blob_attr **attrbuf)
+{
+	if (!obj || !attrbuf[UBUS_ATTR_ACTIVE])
+		return;
+
+	obj->has_subscribers = blob_get_u8(attrbuf[UBUS_ATTR_ACTIVE]);
+	if (obj->subscribe_cb)
+		obj->subscribe_cb(ctx, obj);
+}
+static void
+ubus_process_invoke(struct ubus_context *ctx, struct ubus_msghdr *hdr,
+		    struct ubus_object *obj, struct blob_attr **attrbuf)
+{
+	struct ubus_request_data req = {};
+	int method;
+	int ret;
+
+	if (!obj) {
+		ret = UBUS_STATUS_NOT_FOUND;
+		goto send;
+	}
 
 	if (!attrbuf[UBUS_ATTR_METHOD]) {
 		ret = UBUS_STATUS_INVALID_ARGUMENT;
 		goto send;
 	}
 
-	obj = avl_find_element(&ctx->objects, &req.object, obj, avl);
-	if (!obj) {
-		ret = UBUS_STATUS_NOT_FOUND;
-		goto send;
-	}
+	req.peer = hdr->peer;
+	req.seq = hdr->seq;
+	req.object = obj->id;
 
 	for (method = 0; method < obj->n_methods; method++)
 		if (!obj->methods[method].name ||
@@ -61,6 +82,37 @@ found:
 
 send:
 	ubus_complete_deferred_request(ctx, &req, ret);
+}
+
+void __hidden ubus_process_obj_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
+{
+	void (*cb)(struct ubus_context *, struct ubus_msghdr *,
+		   struct ubus_object *, struct blob_attr **);
+	struct blob_attr **attrbuf;
+	struct ubus_object *obj;
+	uint32_t objid;
+
+	attrbuf = ubus_parse_msg(hdr->data);
+	if (!attrbuf[UBUS_ATTR_OBJID])
+		return;
+
+	objid = blob_get_u32(attrbuf[UBUS_ATTR_OBJID]);
+	obj = avl_find_element(&ctx->objects, &objid, obj, avl);
+
+	switch (hdr->type) {
+	case UBUS_MSG_INVOKE:
+		cb = ubus_process_invoke;
+		break;
+	case UBUS_MSG_UNSUBSCRIBE:
+		cb = ubus_process_unsubscribe;
+		break;
+	case UBUS_MSG_NOTIFY:
+		cb = ubus_process_notify;
+		break;
+	default:
+		return;
+	}
+	cb(ctx, hdr, obj, attrbuf);
 }
 
 static void ubus_add_object_cb(struct ubus_request *req, int type, struct blob_attr *msg)
