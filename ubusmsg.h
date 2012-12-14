@@ -91,6 +91,8 @@ enum ubus_msg_attr {
 	UBUS_ATTR_ACTIVE,
 	UBUS_ATTR_NO_REPLY,
 
+	UBUS_ATTR_SUBSCRIBERS,
+
 	/* must be last */
 	UBUS_ATTR_MAX,
 };
