@@ -227,6 +227,70 @@ int ubus_invoke(struct ubus_context *ctx, uint32_t obj, const char *method,
 	return ubus_complete_request(ctx, &req, timeout);
 }
 
+static void
+ubus_notify_complete_cb(struct ubus_request *req, int ret)
+{
+	struct ubus_notify_request *nreq;
+
+	nreq = container_of(req, struct ubus_notify_request, req);
+	if (!nreq->complete_cb)
+		return;
+
+	nreq->complete_cb(nreq, 0, 0);
+}
+
+static int
+__ubus_notify_async(struct ubus_context *ctx, struct ubus_object *obj,
+		    const char *type, struct blob_attr *msg,
+		    struct ubus_notify_request *req, bool reply)
+{
+	memset(req, 0, sizeof(*req));
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id);
+	blob_put_string(&b, UBUS_ATTR_METHOD, type);
+
+	if (!reply)
+		blob_put_int8(&b, UBUS_ATTR_NO_REPLY, true);
+
+	if (msg)
+		blob_put(&b, UBUS_ATTR_DATA, blob_data(msg), blob_len(msg));
+
+	if (ubus_start_request(ctx, &req->req, b.head, UBUS_MSG_NOTIFY, obj->id) < 0)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	/* wait for status message from ubusd first */
+	req->req.notify = true;
+	req->pending = 1;
+	req->id[0] = obj->id;
+	req->req.complete_cb = ubus_notify_complete_cb;
+
+	return 0;
+}
+
+int ubus_notify_async(struct ubus_context *ctx, struct ubus_object *obj,
+		      const char *type, struct blob_attr *msg,
+		      struct ubus_notify_request *req)
+{
+	return __ubus_notify_async(ctx, obj, type, msg, req, true);
+}
+
+int ubus_notify(struct ubus_context *ctx, struct ubus_object *obj,
+		const char *type, struct blob_attr *msg, int timeout)
+{
+	struct ubus_notify_request req;
+	int ret;
+
+	ret = __ubus_notify_async(ctx, obj, type, msg, &req, timeout >= 0);
+	if (ret < 0)
+		return ret;
+
+	if (timeout < 0)
+		return 0;
+
+	return ubus_complete_request(ctx, &req.req, timeout);
+}
+
 static bool ubus_get_status(struct ubus_msghdr *hdr, int *ret)
 {
 	struct blob_attr **attrbuf = ubus_parse_msg(hdr->data);
@@ -278,13 +342,43 @@ ubus_process_req_data(struct ubus_request *req, struct ubus_msghdr *hdr)
 	list_add(&data->list, &req->pending);
 }
 
+static int
+ubus_find_notify_id(struct ubus_notify_request *n, uint32_t objid)
+{
+	uint32_t pending = n->pending;
+	int i;
+
+	for (i = 0; pending; i++, pending >>= 1) {
+		if (!(pending & 1))
+			continue;
+
+		if (n->id[i] == objid)
+			return i;
+	}
+
+	return -1;
+}
+
 static struct ubus_request *
-ubus_find_request(struct ubus_context *ctx, uint32_t seq, uint32_t peer)
+ubus_find_request(struct ubus_context *ctx, uint32_t seq, uint32_t peer, int *id)
 {
 	struct ubus_request *req;
 
 	list_for_each_entry(req, &ctx->requests, list) {
-		if (seq != req->seq || peer != req->peer)
+		struct ubus_notify_request *nreq;
+		nreq = container_of(req, struct ubus_notify_request, req);
+
+		if (seq != req->seq)
+			continue;
+
+		if (req->notify) {
+			if (!nreq->pending)
+				continue;
+
+			*id = ubus_find_notify_id(nreq, peer);
+			if (*id < 0)
+				continue;
+		} else if (peer != req->peer)
 			continue;
 
 		return req;
@@ -292,21 +386,62 @@ ubus_find_request(struct ubus_context *ctx, uint32_t seq, uint32_t peer)
 	return NULL;
 }
 
+static void ubus_process_notify_status(struct ubus_request *req, int id, struct ubus_msghdr *hdr)
+{
+	struct ubus_notify_request *nreq;
+	struct blob_attr **tb;
+	struct blob_attr *cur;
+	int rem, idx = 1;
+	int ret;
+
+	nreq = container_of(req, struct ubus_notify_request, req);
+	nreq->pending &= ~(1 << id);
+
+	if (!id) {
+		/* first id: ubusd's status message with a list of ids */
+		tb = ubus_parse_msg(hdr->data);
+		if (tb[UBUS_ATTR_SUBSCRIBERS]) {
+			blob_for_each_attr(cur, tb[UBUS_ATTR_SUBSCRIBERS], rem) {
+				if (!blob_check_type(blob_data(cur), blob_len(cur), BLOB_ATTR_INT32))
+					continue;
+
+				nreq->pending |= (1 << idx);
+				nreq->id[idx] = blob_get_int32(cur);
+				idx++;
+
+				if (idx == UBUS_MAX_NOTIFY_PEERS + 1)
+					break;
+			}
+		}
+	} else {
+		ubus_get_status(hdr, &ret);
+		if (nreq->status_cb)
+			nreq->status_cb(nreq, id, ret);
+	}
+
+	if (!nreq->pending)
+		ubus_set_req_status(req, 0);
+}
+
 void __hidden ubus_process_req_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 {
 	struct ubus_request *req;
+	int id = -1;
 
 	switch(hdr->type) {
 	case UBUS_MSG_STATUS:
-		req = ubus_find_request(ctx, hdr->seq, hdr->peer);
+		req = ubus_find_request(ctx, hdr->seq, hdr->peer, &id);
 		if (!req)
 			break;
 
-		ubus_process_req_status(req, hdr);
+		if (id >= 0)
+			ubus_process_notify_status(req, id, hdr);
+		else
+			ubus_process_req_status(req, hdr);
 		break;
 
 	case UBUS_MSG_DATA:
-		req = ubus_find_request(ctx, hdr->seq, hdr->peer);
+		req = ubus_find_request(ctx, hdr->seq, hdr->peer, &id);
 		if (req && (req->data_cb || req->raw_data_cb))
 			ubus_process_req_data(req, hdr);
 		break;

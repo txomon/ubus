@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Felix Fietkau <nbd@openwrt.org>
+ * Copyright (C) 2011-2012 Felix Fietkau <nbd@openwrt.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License version 2.1
@@ -22,6 +22,8 @@
 #include "ubusmsg.h"
 #include "ubus_common.h"
 
+#define UBUS_MAX_NOTIFY_PEERS	16
+
 struct ubus_context;
 struct ubus_msg_src;
 struct ubus_object;
@@ -30,6 +32,7 @@ struct ubus_request_data;
 struct ubus_object_data;
 struct ubus_event_handler;
 struct ubus_subscriber;
+struct ubus_notify_request;
 
 typedef void (*ubus_lookup_handler_t)(struct ubus_context *ctx,
 				      struct ubus_object_data *obj,
@@ -45,6 +48,8 @@ typedef void (*ubus_event_handler_t)(struct ubus_context *ctx, struct ubus_event
 typedef void (*ubus_data_handler_t)(struct ubus_request *req,
 				    int type, struct blob_attr *msg);
 typedef void (*ubus_complete_handler_t)(struct ubus_request *req, int ret);
+typedef void (*ubus_notify_complete_handler_t)(struct ubus_notify_request *req,
+					       int idx, int ret);
 
 #define UBUS_OBJECT_TYPE(_name, _methods)		\
 	{						\
@@ -138,17 +143,17 @@ struct ubus_request_data {
 	uint32_t peer;
 	uint32_t seq;
 	bool deferred;
-	bool notify;
 };
 
 struct ubus_request {
 	struct list_head list;
 
 	struct list_head pending;
-	bool status_msg;
 	int status_code;
+	bool status_msg;
 	bool blocked;
 	bool cancelled;
+	bool notify;
 
 	uint32_t peer;
 	uint32_t seq;
@@ -161,6 +166,15 @@ struct ubus_request {
 	void *priv;
 };
 
+struct ubus_notify_request {
+	struct ubus_request req;
+
+	ubus_notify_complete_handler_t status_cb;
+	ubus_notify_complete_handler_t complete_cb;
+
+	uint32_t pending;
+	uint32_t id[UBUS_MAX_NOTIFY_PEERS + 1];
+};
 
 struct ubus_context *ubus_connect(const char *path);
 int ubus_reconnect(struct ubus_context *ctx, const char *path);
@@ -235,6 +249,18 @@ static inline void ubus_defer_request(struct ubus_context *ctx,
 
 void ubus_complete_deferred_request(struct ubus_context *ctx,
 				    struct ubus_request_data *req, int ret);
+
+/*
+ * send a notification to all subscribers of an object
+ * if timeout < 0, no reply is expected from subscribers
+ */
+int ubus_notify(struct ubus_context *ctx, struct ubus_object *obj,
+		const char *type, struct blob_attr *msg, int timeout);
+
+int ubus_notify_async(struct ubus_context *ctx, struct ubus_object *obj,
+		      const char *type, struct blob_attr *msg,
+		      struct ubus_notify_request *req);
+
 
 /* ----------- events ----------- */
 

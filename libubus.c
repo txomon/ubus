@@ -108,9 +108,10 @@ ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 
 void __hidden ubus_process_pending_msg(struct ubus_context *ctx)
 {
-	struct ubus_pending_msg *pending, *tmp;
+	struct ubus_pending_msg *pending;
 
-	list_for_each_entry_safe(pending, tmp, &ctx->pending, list) {
+	while (!list_empty(&ctx->pending)) {
+		pending = list_first_entry(&ctx->pending, struct ubus_pending_msg, list);
 		list_del(&pending->list);
 		ubus_process_msg(ctx, &pending->hdr);
 		free(pending);
