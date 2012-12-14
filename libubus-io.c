@@ -33,6 +33,8 @@ static const struct blob_attr_info ubus_policy[UBUS_ATTR_MAX] = {
 	[UBUS_ATTR_OBJID] = { .type = BLOB_ATTR_INT32 },
 	[UBUS_ATTR_OBJPATH] = { .type = BLOB_ATTR_STRING },
 	[UBUS_ATTR_METHOD] = { .type = BLOB_ATTR_STRING },
+	[UBUS_ATTR_ACTIVE] = { .type = BLOB_ATTR_INT8 },
+	[UBUS_ATTR_NO_REPLY] = { .type = BLOB_ATTR_INT8 },
 };
 
 static struct blob_attr *attrbuf[UBUS_ATTR_MAX];
