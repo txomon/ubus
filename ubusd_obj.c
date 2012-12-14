@@ -164,12 +164,12 @@ free:
 	return NULL;
 }
 
-void ubus_subscribe(struct ubus_object *obj, struct ubus_object *target, const char *method)
+void ubus_subscribe(struct ubus_object *obj, struct ubus_object *target)
 {
 	struct ubus_subscription *s;
 	bool first = list_empty(&target->subscribers);
 
-	s = calloc(1, sizeof(*s) + strlen(method) + 1);
+	s = calloc(1, sizeof(*s));
 	if (!s)
 		return;
 
@@ -177,7 +177,6 @@ void ubus_subscribe(struct ubus_object *obj, struct ubus_object *target, const c
 	s->target = target;
 	list_add(&s->list, &target->subscribers);
 	list_add(&s->target_list, &obj->target_list);
-	strcpy(s->method, method);
 
 	if (first)
 		ubus_notify_subscription(target);

@@ -38,7 +38,6 @@ struct ubus_method {
 struct ubus_subscription {
 	struct list_head list, target_list;
 	struct ubus_object *subscriber, *target;
-	char method[];
 };
 
 struct ubus_object {
@@ -76,7 +75,7 @@ static inline struct ubus_object *ubusd_find_object(uint32_t objid)
 	return obj;
 }
 
-void ubus_subscribe(struct ubus_object *obj, struct ubus_object *target, const char *method);
+void ubus_subscribe(struct ubus_object *obj, struct ubus_object *target);
 void ubus_unsubscribe(struct ubus_subscription *s);
 void ubus_notify_unsubscribe(struct ubus_subscription *s);
 void ubus_notify_subscription(struct ubus_object *obj);

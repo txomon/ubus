@@ -289,10 +289,8 @@ static int ubusd_handle_add_watch(struct ubus_client *cl, struct ubus_msg_buf *u
 {
 	struct ubus_object *obj, *target;
 
-	if (!attr[UBUS_ATTR_OBJID] || !attr[UBUS_ATTR_TARGET] ||
-	    !attr[UBUS_ATTR_METHOD]) {
+	if (!attr[UBUS_ATTR_OBJID] || !attr[UBUS_ATTR_TARGET])
 		return UBUS_STATUS_INVALID_ARGUMENT;
-	}
 
 	obj = ubusd_find_object(blob_get_u32(attr[UBUS_ATTR_OBJID]));
 	if (!obj)
@@ -308,7 +306,7 @@ static int ubusd_handle_add_watch(struct ubus_client *cl, struct ubus_msg_buf *u
 	if (cl == target->client)
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	ubus_subscribe(obj, target, blob_data(attr[UBUS_ATTR_METHOD]));
+	ubus_subscribe(obj, target);
 	return 0;
 }
 

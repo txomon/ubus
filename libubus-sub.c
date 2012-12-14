@@ -41,15 +41,13 @@ int ubus_register_subscriber(struct ubus_context *ctx, struct ubus_subscriber *s
 }
 
 static int
-__ubus_subscribe_request(struct ubus_context *ctx, struct ubus_object *obj, uint32_t id, const char *method, int type)
+__ubus_subscribe_request(struct ubus_context *ctx, struct ubus_object *obj, uint32_t id, int type)
 {
 	struct ubus_request req;
 
 	blob_buf_init(&b, 0);
 	blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id);
 	blob_put_int32(&b, UBUS_ATTR_TARGET, id);
-	if (method)
-		blob_put_string(&b, UBUS_ATTR_METHOD, method);
 
 	if (ubus_start_request(ctx, &req, b.head, type, 0) < 0)
 		return UBUS_STATUS_INVALID_ARGUMENT;
@@ -60,12 +58,12 @@ __ubus_subscribe_request(struct ubus_context *ctx, struct ubus_object *obj, uint
 
 int ubus_subscribe(struct ubus_context *ctx, struct ubus_subscriber *obj, uint32_t id)
 {
-	return __ubus_subscribe_request(ctx, &obj->obj, id, "event", UBUS_MSG_SUBSCRIBE);
+	return __ubus_subscribe_request(ctx, &obj->obj, id, UBUS_MSG_SUBSCRIBE);
 }
 
 int ubus_unsubscribe(struct ubus_context *ctx, struct ubus_subscriber *obj, uint32_t id)
 {
-	return __ubus_subscribe_request(ctx, &obj->obj, id, NULL, UBUS_MSG_UNSUBSCRIBE);
+	return __ubus_subscribe_request(ctx, &obj->obj, id, UBUS_MSG_UNSUBSCRIBE);
 }
 
 void __hidden ubus_process_unsubscribe(struct ubus_context *ctx, struct ubus_msghdr *hdr)
