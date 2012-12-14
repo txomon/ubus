@@ -62,6 +62,13 @@ enum ubus_msg_type {
 	UBUS_MSG_SUBSCRIBE,
 	UBUS_MSG_UNSUBSCRIBE,
 
+	/*
+	 * send a notification to all subscribers of an object.
+	 * when sent from the server, it indicates a subscription
+	 * status change
+	 */
+	UBUS_MSG_NOTIFY,
+
 	/* must be last */
 	__UBUS_MSG_LAST,
 };
@@ -80,6 +87,8 @@ enum ubus_msg_attr {
 
 	UBUS_ATTR_DATA,
 	UBUS_ATTR_TARGET,
+
+	UBUS_ATTR_ACTIVE,
 
 	/* must be last */
 	UBUS_ATTR_MAX,

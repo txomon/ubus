@@ -79,5 +79,6 @@ static inline struct ubus_object *ubusd_find_object(uint32_t objid)
 void ubus_subscribe(struct ubus_object *obj, struct ubus_object *target, const char *method);
 void ubus_unsubscribe(struct ubus_subscription *s);
 void ubus_notify_unsubscribe(struct ubus_subscription *s);
+void ubus_notify_subscription(struct ubus_object *obj);
 
 #endif

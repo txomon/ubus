@@ -18,7 +18,14 @@
 static struct ubus_context *ctx;
 static struct blob_buf b;
 
-static struct ubus_object test_client_object = {};
+static void test_client_subscribe_cb(struct ubus_context *ctx, struct ubus_object *obj)
+{
+	fprintf(stderr, "Subscribers active: %d\n", obj->has_subscribers);
+}
+
+static struct ubus_object test_client_object = {
+	.subscribe_cb = test_client_subscribe_cb,
+};
 
 static void client_main(void)
 {

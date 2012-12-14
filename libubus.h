@@ -37,6 +37,7 @@ typedef void (*ubus_lookup_handler_t)(struct ubus_context *ctx,
 typedef int (*ubus_handler_t)(struct ubus_context *ctx, struct ubus_object *obj,
 			      struct ubus_request_data *req,
 			      const char *method, struct blob_attr *msg);
+typedef void (*ubus_state_handler_t)(struct ubus_context *ctx, struct ubus_object *obj);
 typedef void (*ubus_remove_handler_t)(struct ubus_context *ctx,
 				      struct ubus_subscriber *obj, uint32_t id);
 typedef void (*ubus_event_handler_t)(struct ubus_context *ctx, struct ubus_event_handler *ev,
@@ -86,6 +87,9 @@ struct ubus_object {
 	const char *path;
 	struct ubus_object_type *type;
 
+	ubus_state_handler_t subscribe_cb;
+	bool has_subscribers;
+
 	const struct ubus_method *methods;
 	int n_methods;
 };
@@ -134,6 +138,7 @@ struct ubus_request_data {
 	uint32_t peer;
 	uint32_t seq;
 	bool deferred;
+	bool notify;
 };
 
 struct ubus_request {

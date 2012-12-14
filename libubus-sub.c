@@ -91,4 +91,22 @@ void __hidden ubus_process_unsubscribe(struct ubus_context *ctx, struct ubus_msg
 	s->remove_cb(ctx, s, blob_get_u32(attrbuf[UBUS_ATTR_TARGET]));
 }
 
+void __hidden ubus_process_notify(struct ubus_context *ctx, struct ubus_msghdr *hdr)
+{
+	struct blob_attr **attrbuf;
+	struct ubus_object *obj;
+	uint32_t objid;
 
+	attrbuf = ubus_parse_msg(hdr->data);
+	if (!attrbuf[UBUS_ATTR_OBJID] || !attrbuf[UBUS_ATTR_ACTIVE])
+		return;
+
+	objid = blob_get_u32(attrbuf[UBUS_ATTR_OBJID]);
+	obj = avl_find_element(&ctx->objects, &objid, obj, avl);
+	if (!obj)
+		return;
+
+	obj->has_subscribers = blob_get_u8(attrbuf[UBUS_ATTR_ACTIVE]);
+	if (obj->subscribe_cb)
+		obj->subscribe_cb(ctx, obj);
+}

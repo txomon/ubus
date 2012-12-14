@@ -167,6 +167,7 @@ free:
 void ubus_subscribe(struct ubus_object *obj, struct ubus_object *target, const char *method)
 {
 	struct ubus_subscription *s;
+	bool first = list_empty(&target->subscribers);
 
 	s = calloc(1, sizeof(*s) + strlen(method) + 1);
 	if (!s)
@@ -177,13 +178,21 @@ void ubus_subscribe(struct ubus_object *obj, struct ubus_object *target, const c
 	list_add(&s->list, &target->subscribers);
 	list_add(&s->target_list, &obj->target_list);
 	strcpy(s->method, method);
+
+	if (first)
+		ubus_notify_subscription(target);
 }
 
 void ubus_unsubscribe(struct ubus_subscription *s)
 {
+	struct ubus_object *obj = s->target;
+
 	list_del(&s->list);
 	list_del(&s->target_list);
 	free(s);
+
+	if (list_empty(&obj->subscribers))
+		ubus_notify_subscription(obj);
 }
 
 void ubusd_free_object(struct ubus_object *obj)

@@ -416,6 +416,20 @@ void ubusd_proto_free_client(struct ubus_client *cl)
 	ubus_free_id(&clients, &cl->id);
 }
 
+void ubus_notify_subscription(struct ubus_object *obj)
+{
+	bool active = !list_empty(&obj->subscribers);
+	struct ubus_msg_buf *ub;
+
+	blob_buf_init(&b, 0);
+	blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id.id);
+	blob_put_int8(&b, UBUS_ATTR_ACTIVE, active);
+
+	ub = ubus_msg_from_blob(false);
+	ubus_msg_init(ub, UBUS_MSG_NOTIFY, ++obj->invoke_seq, 0);
+	ubus_msg_send(obj->client, ub, true);
+}
+
 void ubus_notify_unsubscribe(struct ubus_subscription *s)
 {
 	struct ubus_msg_buf *ub;

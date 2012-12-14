@@ -232,6 +232,10 @@ void __hidden ubus_process_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr
 	case UBUS_MSG_UNSUBSCRIBE:
 		ubus_process_unsubscribe(ctx, hdr);
 		break;
+
+	case UBUS_MSG_NOTIFY:
+		ubus_process_notify(ctx, hdr);
+		break;
 	}
 }
 
