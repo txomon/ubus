@@ -11,6 +11,7 @@
  * GNU General Public License for more details.
  */
 
+#include <sys/time.h>
 #include <unistd.h>
 
 #include "libubus.h"
@@ -31,13 +32,23 @@ static void test_client_notify_cb(struct uloop_timeout *timeout)
 {
 	static int counter = 0;
 	int err;
+	struct timeval tv1, tv2;
+	int max = 1000;
+	long delta;
+	int i = 0;
 
 	blob_buf_init(&b, 0);
 	blobmsg_add_u32(&b, "counter", counter++);
 
-	err = ubus_notify(ctx, &test_client_object, "ping", b.head, 1000);
+	gettimeofday(&tv1, NULL);
+	for (i = 0; i < max; i++)
+		err = ubus_notify(ctx, &test_client_object, "ping", b.head, 1000);
+	gettimeofday(&tv2, NULL);
 	if (err)
 		fprintf(stderr, "Notify failed: %s\n", ubus_strerror(err));
+
+	delta = (tv2.tv_sec - tv1.tv_sec) * 1000000 + (tv2.tv_usec - tv1.tv_usec);
+	fprintf(stderr, "Avg time per iteration: %ld usec\n", delta / max);
 
 	uloop_timeout_set(timeout, 1000);
 }

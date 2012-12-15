@@ -94,11 +94,13 @@ test_notify(struct ubus_context *ctx, struct ubus_object *obj,
 	    struct ubus_request_data *req, const char *method,
 	    struct blob_attr *msg)
 {
+#if 0
 	char *str;
 
 	str = blobmsg_format_json(msg, true);
 	fprintf(stderr, "Received notification '%s': %s\n", method, str);
 	free(str);
+#endif
 
 	return 0;
 }
