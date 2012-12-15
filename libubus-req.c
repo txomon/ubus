@@ -392,7 +392,7 @@ static void ubus_process_notify_status(struct ubus_request *req, int id, struct 
 	struct blob_attr **tb;
 	struct blob_attr *cur;
 	int rem, idx = 1;
-	int ret;
+	int ret = 0;
 
 	nreq = container_of(req, struct ubus_notify_request, req);
 	nreq->pending &= ~(1 << id);
