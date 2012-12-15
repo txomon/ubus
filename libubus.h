@@ -120,7 +120,7 @@ struct ubus_context {
 	struct uloop_fd sock;
 
 	uint32_t local_id;
-	uint32_t request_seq;
+	uint16_t request_seq;
 	int stack_depth;
 
 	void (*connection_lost)(struct ubus_context *ctx);
@@ -141,7 +141,7 @@ struct ubus_object_data {
 struct ubus_request_data {
 	uint32_t object;
 	uint32_t peer;
-	uint32_t seq;
+	uint16_t seq;
 	bool deferred;
 };
 
@@ -156,7 +156,7 @@ struct ubus_request {
 	bool notify;
 
 	uint32_t peer;
-	uint32_t seq;
+	uint16_t seq;
 
 	ubus_data_handler_t raw_data_cb;
 	ubus_data_handler_t data_cb;
