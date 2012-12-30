@@ -292,6 +292,7 @@ struct ubus_context *ubus_connect(const char *path)
 
 void ubus_free(struct ubus_context *ctx)
 {
+	blob_buf_free(&b);
 	close(ctx->sock.fd);
 	free(ctx);
 }
