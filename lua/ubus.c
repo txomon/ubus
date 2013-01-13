@@ -67,7 +67,6 @@ ubus_lua_parse_blob(lua_State *L, struct blob_attr *attr, bool table)
 	int len;
 	int off = 0;
 	void *data;
-	char buf[32];
 
 	if (!blobmsg_check_attr(attr, false))
 		return 0;
@@ -96,9 +95,7 @@ ubus_lua_parse_blob(lua_State *L, struct blob_attr *attr, bool table)
 		break;
 
 	case BLOBMSG_TYPE_INT64:
-		/* NB: Lua cannot handle 64bit, format value as string and push that */
-		sprintf(buf, "%lld", (long long int) be64_to_cpu(*(uint64_t *)data));
-		lua_pushstring(L, buf);
+		lua_pushnumber(L, (double) be64_to_cpu(*(uint64_t *)data));
 		break;
 
 	case BLOBMSG_TYPE_STRING:
