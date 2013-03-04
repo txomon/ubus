@@ -5,6 +5,7 @@ ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations)
 
 OPTION(BUILD_LUA "build Lua plugin" ON)
 OPTION(BUILD_EXAMPLES "build examples" ON)
+OPTION(ENABLE_SYSTEMD "systemd support" ON)
 
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 SET(UBUS_UNIX_SOCKET "/var/run/ubus.sock")
@@ -38,3 +39,15 @@ INSTALL(TARGETS ubusd
 )
 
 INSTALL(FILES ubusmsg.h ubus_common.h libubus.h DESTINATION include)
+
+# FIXME: this works but certainly can be done better:
+SET(UBUSD_BINARY "${CMAKE_INSTALL_PREFIX}/sbin/ubusd")
+
+# do this after the installs so we have the proper paths
+IF(ENABLE_SYSTEMD)
+  INCLUDE(FindPkgConfig)
+  PKG_CHECK_MODULES(SYSTEMD systemd)
+  IF(SYSTEMD_FOUND)
+    ADD_SUBDIRECTORY(systemd)
+  ENDIF()
+ENDIF()
