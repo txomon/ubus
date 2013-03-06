@@ -67,6 +67,12 @@ typedef void (*ubus_notify_complete_handler_t)(struct ubus_notify_request *req,
 		.n_policy = ARRAY_SIZE(_policy)		\
 	}
 
+#define UBUS_METHOD_NOARG(_name, _handler)		\
+	{						\
+		.name = _name,				\
+		.handler = _handler,			\
+	}
+
 struct ubus_method {
 	const char *name;
 	ubus_handler_t handler;
