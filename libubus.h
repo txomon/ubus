@@ -227,6 +227,13 @@ int ubus_remove_object(struct ubus_context *ctx, struct ubus_object *obj);
 
 /* add a subscriber notifications from another object */
 int ubus_register_subscriber(struct ubus_context *ctx, struct ubus_subscriber *obj);
+
+static inline int
+ubus_unregister_subscriber(struct ubus_context *ctx, struct ubus_subscriber *obj)
+{
+	return ubus_remove_object(ctx, &obj->obj);
+}
+
 int ubus_subscribe(struct ubus_context *ctx, struct ubus_subscriber *obj, uint32_t id);
 int ubus_unsubscribe(struct ubus_context *ctx, struct ubus_subscriber *obj, uint32_t id);
 
