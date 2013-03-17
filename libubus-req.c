@@ -285,8 +285,10 @@ int ubus_notify(struct ubus_context *ctx, struct ubus_object *obj,
 	if (ret < 0)
 		return ret;
 
-	if (timeout < 0)
+	if (timeout < 0) {
+		ubus_abort_request(ctx, &req.req);
 		return 0;
+	}
 
 	return ubus_complete_request(ctx, &req.req, timeout);
 }
