@@ -190,7 +190,8 @@ ubus_refresh_state(struct ubus_context *ctx)
 
 	/* clear all type IDs, they need to be registered again */
 	avl_for_each_element(&ctx->objects, obj, avl)
-		obj->type->id = 0;
+		if (obj->type)
+			obj->type->id = 0;
 
 	/* push out all objects again */
 	avl_for_each_element_safe(&ctx->objects, obj, avl, tmp) {
