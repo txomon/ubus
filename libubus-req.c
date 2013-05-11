@@ -157,6 +157,8 @@ int ubus_complete_request(struct ubus_context *ctx, struct ubus_request *req,
 		uloop_cancelled = cancelled;
 	}
 	ctx->stack_depth--;
+	if (ctx->stack_depth)
+		uloop_cancelled = true;
 
 	if (timeout)
 		uloop_timeout_cancel(&cb.timeout);
