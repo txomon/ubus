@@ -23,9 +23,10 @@ TARGET_LINK_LIBRARIES(ubus ubox)
 ADD_EXECUTABLE(ubusd ubusd.c ubusd_id.c ubusd_obj.c ubusd_proto.c ubusd_event.c)
 TARGET_LINK_LIBRARIES(ubusd ubox)
 
+find_library(json NAMES json-c json)
 ADD_EXECUTABLE(cli cli.c)
 SET_TARGET_PROPERTIES(cli PROPERTIES OUTPUT_NAME ubus)
-TARGET_LINK_LIBRARIES(cli ubus ubox blobmsg_json json)
+TARGET_LINK_LIBRARIES(cli ubus ubox blobmsg_json ${json})
 
 ADD_SUBDIRECTORY(lua)
 ADD_SUBDIRECTORY(examples)
