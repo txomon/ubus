@@ -66,7 +66,7 @@ int __hidden ubus_start_request(struct ubus_context *ctx, struct ubus_request *r
 
 void ubus_abort_request(struct ubus_context *ctx, struct ubus_request *req)
 {
-	if (!list_empty(&req->list))
+	if (list_empty(&req->list))
 		return;
 
 	req->cancelled = true;
