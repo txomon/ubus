@@ -77,7 +77,7 @@ static int writev_retry(int fd, struct iovec *iov, int iov_len)
 			cur_len -= iov->iov_len;
 			iov_len--;
 			iov++;
-			if (!cur_len || !iov_len)
+			if (!iov_len)
 				return len;
 		}
 		iov->iov_len -= cur_len;
