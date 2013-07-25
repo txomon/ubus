@@ -82,6 +82,9 @@ static int writev_retry(int fd, struct iovec *iov, int iov_len)
 		}
 		iov->iov_len -= cur_len;
 	} while (1);
+
+	/* Should never reach here */
+	return -1;
 }
 
 int __hidden ubus_send_msg(struct ubus_context *ctx, uint32_t seq,
