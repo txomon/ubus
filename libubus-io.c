@@ -94,6 +94,7 @@ int __hidden ubus_send_msg(struct ubus_context *ctx, uint32_t seq,
 	struct iovec iov[2] = {
 		STATIC_IOV(hdr)
 	};
+	int ret;
 
 	hdr.version = 0;
 	hdr.type = cmd;
@@ -108,37 +109,45 @@ int __hidden ubus_send_msg(struct ubus_context *ctx, uint32_t seq,
 	iov[1].iov_base = (char *) msg;
 	iov[1].iov_len = blob_raw_len(msg);
 
-	return writev_retry(ctx->sock.fd, iov, ARRAY_SIZE(iov));
+	ret = writev_retry(ctx->sock.fd, iov, ARRAY_SIZE(iov));
+	if (ret < 0)
+		ctx->sock.eof = true;
+
+	return ret;
 }
 
-static bool recv_retry(int fd, struct iovec *iov, bool wait)
+static int recv_retry(int fd, struct iovec *iov, bool wait)
 {
-	int bytes;
+	int bytes, total = 0;
 
 	while (iov->iov_len > 0) {
 		if (wait)
 			wait_data(fd, false);
 
 		bytes = read(fd, iov->iov_base, iov->iov_len);
+		if (!bytes)
+			return -1;
+
 		if (bytes < 0) {
 			bytes = 0;
 			if (uloop_cancelled)
-				return false;
+				return 0;
 			if (errno == EINTR)
 				continue;
 
 			if (errno != EAGAIN)
-				return false;
+				return -1;
 		}
 		if (!wait && !bytes)
-			return false;
+			return 0;
 
 		wait = true;
 		iov->iov_len -= bytes;
 		iov->iov_base += bytes;
+		total += bytes;
 	}
 
-	return true;
+	return total;
 }
 
 static bool ubus_validate_hdr(struct ubus_msghdr *hdr)
@@ -158,11 +167,17 @@ static bool ubus_validate_hdr(struct ubus_msghdr *hdr)
 static bool get_next_msg(struct ubus_context *ctx)
 {
 	struct iovec iov = STATIC_IOV(ctx->msgbuf.hdr);
+	int r;
 
 	/* receive header + start attribute */
 	iov.iov_len += sizeof(struct blob_attr);
-	if (!recv_retry(ctx->sock.fd, &iov, false))
+	r = recv_retry(ctx->sock.fd, &iov, false);
+	if (r <= 0) {
+		if (r < 0)
+			ctx->sock.eof = true;
+
 		return false;
+	}
 
 	iov.iov_len = blob_len(ctx->msgbuf.hdr.data);
 	if (iov.iov_len > 0 && !recv_retry(ctx->sock.fd, &iov, true))
