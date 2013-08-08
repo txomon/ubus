@@ -190,6 +190,8 @@ static void
 ubus_refresh_state(struct ubus_context *ctx)
 {
 	struct ubus_object *obj, *tmp;
+	struct ubus_object **objs;
+	int n, i = 0;
 
 	/* clear all type IDs, they need to be registered again */
 	avl_for_each_element(&ctx->objects, obj, avl)
@@ -197,11 +199,14 @@ ubus_refresh_state(struct ubus_context *ctx)
 			obj->type->id = 0;
 
 	/* push out all objects again */
-	avl_for_each_element_safe(&ctx->objects, obj, avl, tmp) {
+	objs = alloca(ctx->objects.count * sizeof(*objs));
+	avl_remove_all_elements(&ctx->objects, obj, avl, tmp) {
+		objs[i++] = obj;
 		obj->id = 0;
-		avl_delete(&ctx->objects, &obj->avl);
-		ubus_add_object(ctx, obj);
 	}
+
+	for (n = i, i = 0; i < n; i++)
+		ubus_add_object(ctx, objs[i]);
 }
 
 int ubus_reconnect(struct ubus_context *ctx, const char *path)
