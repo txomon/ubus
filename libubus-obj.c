@@ -27,7 +27,8 @@ ubus_process_unsubscribe(struct ubus_context *ctx, struct ubus_msghdr *hdr,
 		return;
 
 	s = container_of(obj, struct ubus_subscriber, obj);
-	s->remove_cb(ctx, s, blob_get_u32(attrbuf[UBUS_ATTR_TARGET]));
+	if (s->remove_cb)
+		s->remove_cb(ctx, s, blob_get_u32(attrbuf[UBUS_ATTR_TARGET]));
 }
 
 static void
