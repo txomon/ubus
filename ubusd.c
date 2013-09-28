@@ -12,6 +12,7 @@
  */
 
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/uio.h>
 #include <signal.h>
 #include <stdio.h>
@@ -321,6 +322,7 @@ int main(int argc, char **argv)
 	}
 
 	unlink(ubus_socket);
+	umask(0177);
 	server_fd.fd = usock(USOCK_UNIX | USOCK_SERVER | USOCK_NONBLOCK, ubus_socket, NULL);
 	if (server_fd.fd < 0) {
 		perror("usock");
