@@ -75,11 +75,11 @@ ubus_queue_msg(struct ubus_context *ctx, struct ubus_msghdr *hdr)
 {
 	struct ubus_pending_msg *pending;
 
-	pending = calloc(1, sizeof(*pending) + blob_raw_len(hdr->data));
+	pending = calloc(1, sizeof(*pending) + blob_raw_len(ubus_msghdr_data(hdr)));
 	if (!pending)
 		return;
 
-	memcpy(&pending->hdr, hdr, sizeof(*hdr) + blob_raw_len(hdr->data));
+	memcpy(&pending->hdr, hdr, sizeof(*hdr) + blob_raw_len(ubus_msghdr_data(hdr)));
 	list_add(&pending->list, &ctx->pending);
 }
 

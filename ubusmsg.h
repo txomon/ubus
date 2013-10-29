@@ -29,7 +29,6 @@ struct ubus_msghdr {
 	uint8_t type;
 	uint16_t seq;
 	uint32_t peer;
-	struct blob_attr data[];
 } __packetdata;
 
 enum ubus_msg_type {

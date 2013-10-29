@@ -297,7 +297,7 @@ int ubus_notify(struct ubus_context *ctx, struct ubus_object *obj,
 
 static bool ubus_get_status(struct ubus_msghdr *hdr, int *ret)
 {
-	struct blob_attr **attrbuf = ubus_parse_msg(hdr->data);
+	struct blob_attr **attrbuf = ubus_parse_msg(ubus_msghdr_data(hdr));
 
 	if (!attrbuf[UBUS_ATTR_STATUS])
 		return false;
@@ -321,12 +321,13 @@ ubus_process_req_status(struct ubus_request *req, struct ubus_msghdr *hdr)
 static void
 ubus_process_req_data(struct ubus_request *req, struct ubus_msghdr *hdr)
 {
+	struct blob_attr *msg_data = ubus_msghdr_data(hdr);
 	struct ubus_pending_data *data;
 	int len;
 
 	if (!req->blocked) {
 		req->blocked = true;
-		req_data_cb(req, hdr->type, hdr->data);
+		req_data_cb(req, hdr->type, msg_data);
 		__ubus_process_req_data(req);
 		req->blocked = false;
 
@@ -336,13 +337,13 @@ ubus_process_req_data(struct ubus_request *req, struct ubus_msghdr *hdr)
 		return;
 	}
 
-	len = blob_raw_len(hdr->data);
+	len = blob_raw_len(msg_data);
 	data = calloc(1, sizeof(*data) + len);
 	if (!data)
 		return;
 
 	data->type = hdr->type;
-	memcpy(data->data, hdr->data, len);
+	memcpy(data->data, msg_data, len);
 	list_add(&data->list, &req->pending);
 }
 
@@ -403,7 +404,7 @@ static void ubus_process_notify_status(struct ubus_request *req, int id, struct 
 
 	if (!id) {
 		/* first id: ubusd's status message with a list of ids */
-		tb = ubus_parse_msg(hdr->data);
+		tb = ubus_parse_msg(ubus_msghdr_data(hdr));
 		if (tb[UBUS_ATTR_SUBSCRIBERS]) {
 			blob_for_each_attr(cur, tb[UBUS_ATTR_SUBSCRIBERS], rem) {
 				if (!blob_check_type(blob_data(cur), blob_len(cur), BLOB_ATTR_INT32))

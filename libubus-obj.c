@@ -97,7 +97,7 @@ void __hidden ubus_process_obj_msg(struct ubus_context *ctx, struct ubus_msghdr 
 	struct ubus_object *obj;
 	uint32_t objid;
 
-	attrbuf = ubus_parse_msg(hdr->data);
+	attrbuf = ubus_parse_msg(ubus_msghdr_data(hdr));
 	if (!attrbuf[UBUS_ATTR_OBJID])
 		return;
 

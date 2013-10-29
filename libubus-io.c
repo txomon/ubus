@@ -152,13 +152,15 @@ static int recv_retry(int fd, struct iovec *iov, bool wait)
 
 static bool ubus_validate_hdr(struct ubus_msghdr *hdr)
 {
+	struct blob_attr *data = ubus_msghdr_data(hdr);
+
 	if (hdr->version != 0)
 		return false;
 
-	if (blob_raw_len(hdr->data) < sizeof(*hdr->data))
+	if (blob_raw_len(data) < sizeof(*data))
 		return false;
 
-	if (blob_pad_len(hdr->data) > UBUS_MAX_MSGLEN)
+	if (blob_pad_len(data) > UBUS_MAX_MSGLEN)
 		return false;
 
 	return true;
@@ -179,7 +181,7 @@ static bool get_next_msg(struct ubus_context *ctx)
 		return false;
 	}
 
-	iov.iov_len = blob_len(ctx->msgbuf.hdr.data);
+	iov.iov_len = blob_len(ubus_msghdr_data(&ctx->msgbuf.hdr));
 	if (iov.iov_len > 0 && !recv_retry(ctx->sock.fd, &iov, true))
 		return false;
 
