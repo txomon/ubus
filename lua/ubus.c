@@ -17,7 +17,7 @@
 #include <libubox/blobmsg.h>
 #include <libubox/blobmsg_json.h>
 #include <lauxlib.h>
-
+#include <lua.h>
 
 #define MODNAME        "ubus"
 #define METANAME       MODNAME ".meta"
@@ -32,6 +32,11 @@ struct ubus_lua_connection {
 
 struct ubus_lua_object {
 	struct ubus_object o;
+	int r;
+};
+
+struct ubus_lua_event {
+	struct ubus_event_handler e;
 	int r;
 };
 
@@ -557,6 +562,89 @@ ubus_lua_call(lua_State *L)
 	return lua_gettop(L) - top;
 }
 
+static void
+ubus_event_handler(struct ubus_context *ctx, struct ubus_event_handler *ev,
+			const char *type, struct blob_attr *msg)
+{
+	struct ubus_lua_event *listener = container_of(ev, struct ubus_lua_event, e);
+
+	lua_getglobal(state, "__ubus_cb_event");
+	lua_rawgeti(state, -1, listener->r);
+
+	if (lua_isfunction(state, -1)) {
+		ubus_lua_parse_blob_array(state, blob_data(msg), blob_len(msg), true);
+		lua_call(state, 1, 0);
+	}
+}
+
+static struct ubus_event_handler*
+ubus_lua_load_event(lua_State *L)
+{
+	struct ubus_lua_event* event = NULL;
+
+	event = malloc(sizeof(struct ubus_lua_event));
+	memset(event, 0, sizeof(struct ubus_lua_event));
+	event->e.cb = ubus_event_handler;
+
+	/* update the he callback lookup table */
+	lua_getglobal(L, "__ubus_cb_event");
+	lua_pushvalue(L, -2);
+	event->r = luaL_ref(L, -2);
+	lua_setfield(L, -1, lua_tostring(L, -3));
+
+	return &event->e;
+}
+
+static int
+ubus_lua_listen(lua_State *L) {
+	struct ubus_lua_connection *c = luaL_checkudata(L, 1, METANAME);
+
+	/* verify top level object */
+	luaL_checktype(L, 2, LUA_TTABLE);
+
+	/* scan each object */
+	lua_pushnil(L);
+	while (lua_next(L, -2) != 0) {
+		struct ubus_event_handler *listener;
+
+		/* check if the key is a string and the value is a method */
+		if ((lua_type(L, -2) == LUA_TSTRING) && (lua_type(L, -1) == LUA_TFUNCTION)) {
+			listener = ubus_lua_load_event(L);
+			if(listener != NULL) {
+				ubus_register_event_handler(c->ctx, listener, lua_tostring(L, -2));
+			}
+		}
+		lua_pop(L, 1);
+	}
+	return 0;
+}
+
+static int
+ubus_lua_send(lua_State *L)
+{
+	struct ubus_lua_connection *c = luaL_checkudata(L, 1, METANAME);
+	const char *event = luaL_checkstring(L, 2);
+
+	if (*event == 0)
+		return luaL_argerror(L, 2, "no event name");
+
+	// Event content convert to ubus form
+	luaL_checktype(L, 3, LUA_TTABLE);
+	blob_buf_init(&c->buf, 0);
+
+	if (!ubus_lua_format_blob_array(L, &c->buf, true)) {
+		lua_pushnil(L);
+		lua_pushinteger(L, UBUS_STATUS_INVALID_ARGUMENT);
+		return 2;
+	}
+
+	// Send the event
+	ubus_send_event(c->ctx, event, c->buf.head);
+
+	return 0;
+}
+
+
 
 static int
 ubus_lua__gc(lua_State *L)
@@ -580,6 +668,8 @@ static const luaL_Reg ubus[] = {
 	{ "signatures", ubus_lua_signatures },
 	{ "call", ubus_lua_call },
 	{ "close", ubus_lua__gc },
+	{ "listen", ubus_lua_listen },
+	{ "send", ubus_lua_send },
 	{ "__gc", ubus_lua__gc },
 	{ NULL, NULL },
 };
@@ -628,6 +718,10 @@ luaopen_ubus(lua_State *L)
 	/* create the callback table */
 	lua_createtable(L, 1, 0);
 	lua_setglobal(L, "__ubus_cb");
+
+	/* create the event table */
+	lua_createtable(L, 1, 0);
+	lua_setglobal(L, "__ubus_cb_event");
 
 	return 0;
 }

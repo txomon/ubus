@@ -39,4 +39,16 @@ local my_method = {
 }
 
 conn:add(my_method)
+
+local my_event = {
+	test = function(msg)
+		print("Call to test event")
+		for k, v in pairs(msg) do
+			print("key=" .. k .. " value=" .. tostring(v))
+		end
+	end,
+}
+
+conn:listen(my_event)
+
 uloop.run()

@@ -36,4 +36,6 @@ for a = 1, #status do
 	end
 end
 
+conn:send("test", { foo = "bar"})
+
 uloop.run()
