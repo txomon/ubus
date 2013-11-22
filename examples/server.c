@@ -20,23 +20,35 @@ static struct ubus_context *ctx;
 static struct ubus_subscriber test_event;
 static struct blob_buf b;
 
+/*
+	Enum created to have policy ordered with names
+*/
 enum {
 	HELLO_ID,
 	HELLO_MSG,
 	__HELLO_MAX
 };
 
+/*
+	Policy stuff, what elements we will return in the JSON
+*/
 static const struct blobmsg_policy hello_policy[] = {
 	[HELLO_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
 	[HELLO_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING },
 };
 
+/*
+	The request???
+*/
 struct hello_request {
 	struct ubus_request_data req;
 	struct uloop_timeout timeout;
 	char data[];
 };
 
+/*
+
+*/
 static void test_hello_reply(struct uloop_timeout *t)
 {
 	struct hello_request *req = container_of(t, struct hello_request, timeout);
@@ -48,6 +60,15 @@ static void test_hello_reply(struct uloop_timeout *t)
 	free(req);
 }
 
+/**
+	The hello callback is this one.
+
+	@param ctx - The context??
+	@param obj - The...??
+	@param req -
+	@param method -
+	@param msg -
+*/
 static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
 		      struct ubus_request_data *req, const char *method,
 		      struct blob_attr *msg)
