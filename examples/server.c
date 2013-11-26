@@ -51,6 +51,7 @@ struct hello_request {
 */
 static void test_hello_reply(struct uloop_timeout *t)
 {
+	fprintf(stderr, "test_hello_reply Start\n");
 	struct hello_request *req = container_of(t, struct hello_request, timeout);
 
 	blob_buf_init(&b, 0);
@@ -58,6 +59,7 @@ static void test_hello_reply(struct uloop_timeout *t)
 	ubus_send_reply(ctx, &req->req, b.head);
 	ubus_complete_deferred_request(ctx, &req->req, 0);
 	free(req);
+	fprintf(stderr, "test_hello_reply End\n");
 }
 
 /**
@@ -66,7 +68,7 @@ static void test_hello_reply(struct uloop_timeout *t)
 	@param ctx - The context??
 	@param obj - The...??
 	@param req -
-	@param method -
+	@param method - The name of the method that wants to be called
 	@param msg -
 */
 static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
@@ -78,6 +80,7 @@ static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
 	const char *format = "%s received a message: %s";
 	const char *msgstr = "(unknown)";
 
+	fprintf(stderr, "test_hello Start\n");
 	blobmsg_parse(hello_policy, ARRAY_SIZE(hello_policy), tb, blob_data(msg), blob_len(msg));
 
 	if (tb[HELLO_MSG])
@@ -89,6 +92,7 @@ static int test_hello(struct ubus_context *ctx, struct ubus_object *obj,
 	hreq->timeout.cb = test_hello_reply;
 	uloop_timeout_set(&hreq->timeout, 1000);
 
+	fprintf(stderr, "test_hello End\n");
 	return 0;
 }
 
@@ -107,9 +111,14 @@ static void
 test_handle_remove(struct ubus_context *ctx, struct ubus_subscriber *s,
                    uint32_t id)
 {
+	fprintf(stderr, "test_handle_remove Start\n");
 	fprintf(stderr, "Object %08x went away\n", id);
+	fprintf(stderr, "test_handle_remove End\n");
 }
 
+/*
+	When a method is called, displays method and params
+*/
 static int
 test_notify(struct ubus_context *ctx, struct ubus_object *obj,
 	    struct ubus_request_data *req, const char *method,
@@ -122,7 +131,8 @@ test_notify(struct ubus_context *ctx, struct ubus_object *obj,
 	fprintf(stderr, "Received notification '%s': %s\n", method, str);
 	free(str);
 #endif
-
+	fprintf(stderr, "test_notify Start\n");
+	fprintf(stderr, "test_notify End\n");
 	return 0;
 }
 
@@ -130,6 +140,7 @@ static int test_watch(struct ubus_context *ctx, struct ubus_object *obj,
 		      struct ubus_request_data *req, const char *method,
 		      struct blob_attr *msg)
 {
+	fprintf(stderr, "test_watch Start\n");
 	struct blob_attr *tb[__WATCH_MAX];
 	int ret;
 
@@ -137,10 +148,11 @@ static int test_watch(struct ubus_context *ctx, struct ubus_object *obj,
 	if (!tb[WATCH_ID])
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	test_event.remove_cb = test_handle_remove;
-	test_event.cb = test_notify;
+	test_event.remove_cb = test_handle_remove; // Action on remove
+	test_event.cb = test_notify; // Say which is the objective for calls
 	ret = ubus_subscribe(ctx, &test_event, blobmsg_get_u32(tb[WATCH_ID]));
 	fprintf(stderr, "Watching object %08x: %s\n", blobmsg_get_u32(tb[WATCH_ID]), ubus_strerror(ret));
+	fprintf(stderr, "test_watch End\n");
 	return ret;
 }
 
@@ -161,6 +173,7 @@ static struct ubus_object test_object = {
 
 static void server_main(void)
 {
+	fprintf(stderr, "server_main Start\n");
 	int ret;
 
 	ret = ubus_add_object(ctx, &test_object);
@@ -172,6 +185,7 @@ static void server_main(void)
 		fprintf(stderr, "Failed to add watch handler: %s\n", ubus_strerror(ret));
 
 	uloop_run();
+	fprintf(stderr, "server_main End\n");
 }
 
 int main(int argc, char **argv)
