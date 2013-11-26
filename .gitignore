@@ -8,5 +8,5 @@ CMakeFiles
 examples/server
 examples/client
 ubusd
-ubus
+/ubus
 install_manifest.txt
