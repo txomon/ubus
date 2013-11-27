@@ -15,17 +15,17 @@ __version__ = '0.0.0'
 logging.getLogger('ubus').addHandler(logging.NullHandler())
 
 
-_header_file = os.path.join(os.path.dirname(__file__), 'ubus.processed.h')
+_header_file = os.path.join(os.path.dirname(__file__), 'libubus.processed.h')
 _header = open(_header_file).read()
-#_header += '#define SPOTIFY_API_VERSION ...\n'
 ffi = cffi.FFI()
 ffi.cdef(_header)
 lib = ffi.verify("""
     #include <libubus.h>
-    #include <libubox/blobmsg.h>
-    #include <libubox/blobmsg_json.h>""",
+    """,
     libraries=[str('ubus'),
-               str('ubox')],
+               str('ubox'),
+               str('blobmsg_json'),
+               str('json_script')],
     ext_package='ubus')
 
 
