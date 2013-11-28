@@ -8,14 +8,19 @@ import ubus
 class SessionTest(unittest.TestCase):
 
     def test_create_session(self):
-        self.assertRaises(ubus.Session)
+        """Test that connecting to the standard socket fails with a 
+        connection error due to access persmissions.
+        """
+        self.assertRaises(ubus.ConnectionError, ubus.Session)
 
     def test_create_session_path_to_socket(self):
-        session = ubus.Session("/var/run/ubus.sock")
-        self.assertIsNotNone(session)
+        """Test that connecting to the default socket althought specifying
+        route also faild due to permission errors.
+        """
+        self.assertRaises(ubus.ConnectionError, ubus.Session, "/var/run/ubus.sock")
 
-    def test_create_session_not_to_socket(self):
-        session = ubus.Session()
+    def test_create_session_to_writable_socket(self):
+        """Test that if we specify a writtable socket 
+        """
+        session = ubus.Session("/tmp/socket")
         self.assertIsNotNone(session)
-
-    def test_session
