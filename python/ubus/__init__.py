@@ -47,4 +47,4 @@ callback_dict = {}
 session_instance = None
 
 
-#from spotify.album import *  # noqa
+from ubus.session import *  # noqa
