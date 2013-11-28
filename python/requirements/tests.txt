@@ -1,3 +1,0 @@
-tox
-nosetests
-mock
