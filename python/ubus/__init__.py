@@ -42,9 +42,9 @@ weak_key_dict = weakref.WeakKeyDictionary()
 # callback functions in Python context.
 callback_dict = {}
 
-# Reference to the spotify.Session instance. Used to enforce that one and only
+# Reference to ubus Session instance. Used to enforce that one and only
 # one session exists in each process.
-#session_instance = None
+session_instance = None
 
 
 #from spotify.album import *  # noqa
