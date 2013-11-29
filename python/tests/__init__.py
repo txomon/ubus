@@ -1,9 +1,12 @@
 from __future__ import unicode_literals
 
+import gc
+import platform
+
 import cffi
 
-
 cffi.verifier.cleanup_tmpdir()
+
 
 def gc_collect():
     """Run enough GC collections to make object finalizers run."""
