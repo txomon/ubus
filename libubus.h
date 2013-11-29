@@ -79,6 +79,7 @@ typedef void (*ubus_notify_complete_handler_t)(struct ubus_notify_request *req,
 		.handler = _handler,			\
 	}
 
+/* Struct to represent a method to be called*/
 struct ubus_method {
 	const char *name;
 	ubus_handler_t handler;
@@ -220,9 +221,11 @@ void ubus_abort_request(struct ubus_context *ctx, struct ubus_request *req);
 
 /* ----------- objects ----------- */
 
+/* Lookup for a registered path inside ubus */
 int ubus_lookup(struct ubus_context *ctx, const char *path,
 		ubus_lookup_handler_t cb, void *priv);
 
+/* Search for the ID of the given path */
 int ubus_lookup_id(struct ubus_context *ctx, const char *path, uint32_t *id);
 
 /* make an object visible to remote connections */
@@ -234,6 +237,7 @@ int ubus_remove_object(struct ubus_context *ctx, struct ubus_object *obj);
 /* add a subscriber notifications from another object */
 int ubus_register_subscriber(struct ubus_context *ctx, struct ubus_subscriber *obj);
 
+/* delete a notification from another object */
 static inline int
 ubus_unregister_subscriber(struct ubus_context *ctx, struct ubus_subscriber *obj)
 {
